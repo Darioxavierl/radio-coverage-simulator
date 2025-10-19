@@ -1,0 +1,56 @@
+LICENSE.txt
+
+Academic and Non-Commercial License (ANCL)
+Version 1.0 — 2025
+
+Copyright (c) 2025 Dario Portilla - David Montaño
+All rights reserved.
+
+1. Propósito
+
+Este software, titulado “Simulador de Cobertura Radioeléctrica”, ha sido desarrollado por Dario Portilla como parte de un proyecto de tesis de grado en Ingeniería en Telecomunicaciones.
+Su publicación en este repositorio tiene fines académicos, educativos y de evaluación.
+
+2. Permisos concedidos
+
+Se concede permiso para:
+
+Visualizar, clonar y ejecutar el código con fines académicos, educativos o de investigación no comercial.
+
+Referenciar o citar este trabajo en documentos académicos, siempre que se acredite la autoría correspondiente.
+
+El uso del software en estos contextos no transfiere derechos de propiedad intelectual ni de explotación comercial.
+
+3. Restricciones
+
+No está permitido, sin autorización expresa y por escrito del autor:
+
+Usar este software o cualquiera de sus partes con fines comerciales, industriales o de lucro.
+
+Redistribuir versiones modificadas o derivadas del software.
+
+Incorporar total o parcialmente este código en proyectos cerrados o comerciales.
+
+Publicar el software en otros repositorios o plataformas sin mención explícita de la fuente original.
+
+4. Propiedad intelectual
+
+El software, su código fuente, documentación y resultados asociados son propiedad exclusiva de Dario Portilla - David Montaño.
+Todos los derechos sobre su diseño, implementación y estructura quedan reservados.
+
+5. Ausencia de garantía
+
+El software se distribuye “tal cual”, sin garantía de ningún tipo, expresa o implícita, incluyendo pero no limitada a su idoneidad para un propósito particular o la ausencia de errores.
+El autor no será responsable de ningún daño derivado del uso del software.
+
+6. Contacto y licencias adicionales
+
+Para obtener permiso de uso extendido, licenciamiento comercial, integración en otros sistemas o colaboración, contactar al autor:
+
+dario.portilla@ucuenca.edu.ec
+david.montanob@ucuenca.edu.ec
+
+Universidad de Cuenca — Facultad de Ingeniería en Telecomunicaciones
+
+© 2025 Dario Portilla - David Montaño
+Todos los derechos reservados.
