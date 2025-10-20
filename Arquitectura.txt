@@ -1,0 +1,37 @@
+/src
+ ├─ core/
+ │   ├─ propagation_models/
+ │   │    ├─ okumura_hata.py
+ │   │    ├─ cost231.py
+ │   │    └─ itu_r_p1546.py
+ │   ├─ terrain/
+ │   │    ├─ dem_loader.py
+ │   │    └─ elevation_loss.py
+ │   ├─ simulation/
+ │   │    ├─ coverage_calculator.py
+ │   │    └─ power_profile.py
+ │   └─ utils/
+ │        ├─ constants.py
+ │        └─ conversions.py
+ │
+ ├─ gui/
+ │   ├─ main_window.py          ← Ventana principal PyQt
+ │   ├─ settings_panel.py       ← Parámetros de simulación (frecuencia, potencia, etc.)
+ │   ├─ leaflet_widget.py       ← Widget QWebEngineView con mapa Leaflet
+ │   └─ results_panel.py        ← Gráficos y tablas
+ │
+ ├─ api/
+ │   ├─ server.py               ← (opcional) FastAPI local si quieres correr simulaciones por REST
+ │   └─ routes/
+ │       ├─ run_simulation.py
+ │       └─ get_results.py
+ │
+ ├─ data/
+ │   ├─ dem/                    ← Archivos de elevación (GeoTIFF, SRTM)
+ │   ├─ config/
+ │   └─ output/
+ │
+ ├─ tests/
+ │   └─ test_models.py
+ │
+ └─ main.py                     ← Punto de entrada

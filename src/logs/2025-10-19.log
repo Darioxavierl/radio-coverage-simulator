@@ -1,0 +1,18 @@
+2025-10-19 20:31:13 | INFO     | __main__ | CUDA no detectada (no se encontró nvcc).
+2025-10-19 20:31:13 | INFO     | __main__ | Error al detectar GPU: module 'importlib' has no attribute 'util'
+2025-10-19 20:31:16 | INFO     | __main__ | Usando CPU con NumPy.
+2025-10-19 20:35:43 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:35:43 | INFO     | __main__ | Error al inicializar GPU: name 'min_cuda_version' is not defined
+2025-10-19 20:37:17 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:37:17 | INFO     | __main__ | Usando GPU con CuPy.
+2025-10-19 20:47:12 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:47:12 | INFO     | __main__ | Usando GPU con CuPy.
+2025-10-19 20:47:39 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:47:39 | INFO     | __main__ | Usando GPU con CuPy.
+2025-10-19 20:51:43 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:51:43 | INFO     | __main__ | Usando GPU con CuPy.
+2025-10-19 20:51:53 | INFO     | __main__ | Iniciando simulador...
+2025-10-19 20:52:07 | INFO     | __main__ | Iniciando simulador...
+2025-10-19 20:52:10 | INFO     | __main__ | GPU detectada: NVIDIA GeForce GTX 1660 SUPER | CUDA 13.0
+2025-10-19 20:52:10 | INFO     | __main__ | Usando GPU con CuPy.
+2025-10-19 20:52:10 | INFO     | __main__ | [MainWindow] Construyendo layout principal...

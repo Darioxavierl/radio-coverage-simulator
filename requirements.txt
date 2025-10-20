@@ -1,0 +1,10 @@
+PyQt6 
+PyQt6-WebEngine 
+folium 
+rasterio 
+numpy 
+matplotlib 
+requests 
+elevation
+srtm.py
+cupy-cuda13x
