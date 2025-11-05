@@ -1,0 +1,28 @@
+{
+  "app_name": "RF Coverage Tool",
+  "menu": {
+    "file": "File",
+    "new_project": "New Project",
+    "open_project": "Open Project",
+    "save_project": "Save Project",
+    "exit": "Exit"
+  },
+  "toolbar": {
+    "pan": "Pan",
+    "add_antenna": "Add Antenna",
+    "move": "Move",
+    "select": "Select",
+    "simulate": "Simulate"
+  },
+  "status": {
+    "ready": "Ready",
+    "loading": "Loading...",
+    "simulating": "Simulating...",
+    "completed": "Completed"
+  },
+  "messages": {
+    "antenna_placed": "Antenna placed",
+    "simulation_completed": "Simulation completed",
+    "error_loading_project": "Error loading project"
+  }
+}

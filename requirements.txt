@@ -1,10 +1,22 @@
-PyQt6 
-PyQt6-WebEngine 
-folium 
-rasterio 
-numpy 
-matplotlib 
-requests 
-elevation
-srtm.py
-cupy-cuda13x
+# Core dependencies
+PyQt6
+PyQt6-WebEngine
+
+# Numerical computing
+numpy
+scipy
+matplotlib
+
+# Geospatial
+rasterio
+#GDAL
+pyproj
+
+# Utilities
+python-dateutil==2.8.2
+
+# Logging and configuration
+python-json-logger==2.0.7
+
+# Optional: GPU acceleration (install separately if CUDA available)
+cupy-cuda13x  # Uncomment and adjust for your CUDA version

@@ -1,41 +1,35 @@
 import logging
-import os
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from datetime import datetime
 
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-
-def setup_logger(name="simulador", level=logging.DEBUG):
-    """
-    Configura un logger rotativo para toda la aplicación.
-    """
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-
-    # Evitar duplicados si ya fue configurado
-    if logger.handlers:
-        return logger
-
-    # Formato estándar del log
+def setup_logger(log_dir: str = "logs", level=logging.INFO):
+    log_path = Path(log_dir)
+    log_path.mkdir(exist_ok=True)
+    
+    # Archivo con fecha
+    log_file = log_path / f"app_{datetime.now().strftime('%Y%m%d')}.log"
+    
+    # Formato detallado
     formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
-
-    # --- Archivo de log rotativo ---
-    log_file = os.path.join(LOG_DIR, f"{datetime.now():%Y-%m-%d}.log")
-    file_handler = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=5)
+    
+    # Handler rotativo (10MB, 5 backups)
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'
+    )
     file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.INFO)
-
-    # --- Consola (para debug) ---
+    
+    # Handler consola
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.DEBUG)
-
-    # Agregar handlers al logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
+    
+    # Logger raíz
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    return root_logger

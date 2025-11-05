@@ -1,0 +1,28 @@
+{
+  "app_name": "Herramienta de Cobertura RF",
+  "menu": {
+    "file": "Archivo",
+    "new_project": "Nuevo Proyecto",
+    "open_project": "Abrir Proyecto",
+    "save_project": "Guardar Proyecto",
+    "exit": "Salir"
+  },
+  "toolbar": {
+    "pan": "Navegar",
+    "add_antenna": "Agregar Antena",
+    "move": "Mover",
+    "select": "Seleccionar",
+    "simulate": "Simular"
+  },
+  "status": {
+    "ready": "Listo",
+    "loading": "Cargando...",
+    "simulating": "Simulando...",
+    "completed": "Completado"
+  },
+  "messages": {
+    "antenna_placed": "Antena colocada",
+    "simulation_completed": "Simulación completada",
+    "error_loading_project": "Error al cargar proyecto"
+  }
+}

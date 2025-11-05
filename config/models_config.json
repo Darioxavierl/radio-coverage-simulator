@@ -1,0 +1,29 @@
+{
+  "okumura_hata": {
+    "name": "Okumura-Hata",
+    "frequency_range": [150, 1500],
+    "distance_range": [1, 20],
+    "default_environment": "urban"
+  },
+  "cost231": {
+    "name": "COST-231 Hata",
+    "frequency_range": [1500, 2000],
+    "distance_range": [1, 20],
+    "default_environment": "urban"
+  },
+  "itu_p1546": {
+    "name": "ITU-R P.1546",
+    "frequency_range": [30, 3000],
+    "distance_range": [1, 1000]
+  },
+  "3gpp_tr38901_sub6": {
+    "name": "3GPP TR 38.901 Sub-6 GHz",
+    "frequency_range": [500, 6000],
+    "scenarios": ["UMa", "UMi", "RMa"]
+  },
+  "3gpp_tr38901_mmwave": {
+    "name": "3GPP TR 38.901 mmWave",
+    "frequency_range": [24000, 100000],
+    "scenarios": ["UMa", "UMi", "InH"]
+  }
+}

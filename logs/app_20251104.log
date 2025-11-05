@@ -1,0 +1,342 @@
+2025-11-04 19:53:17 - root - INFO - ==================================================
+2025-11-04 19:53:17 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 19:53:17 - root - INFO - ==================================================
+2025-11-04 19:53:18 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 19:53:18 - root - INFO - Splash: Cargando configuración...
+2025-11-04 19:53:18 - root - INFO - Splash: Detectando hardware...
+2025-11-04 19:53:28 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:53:28 - root - INFO -   Device ID: 0
+2025-11-04 19:53:28 - root - INFO -   Compute Capability: 75
+2025-11-04 19:53:28 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 19:53:28 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 19:53:28 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:53:28 - root - INFO -   Device ID: 0
+2025-11-04 19:53:28 - root - INFO -   Compute Capability: 75
+2025-11-04 19:53:28 - root - INFO - Compute engine initialized: GPU
+2025-11-04 19:53:28 - MainWindow - INFO - Managers initialized
+2025-11-04 19:56:39 - root - INFO - ==================================================
+2025-11-04 19:56:39 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 19:56:39 - root - INFO - ==================================================
+2025-11-04 19:56:40 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 19:56:40 - root - INFO - Splash: Cargando configuración...
+2025-11-04 19:56:40 - root - INFO - Splash: Detectando hardware...
+2025-11-04 19:56:41 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:56:41 - root - INFO -   Device ID: 0
+2025-11-04 19:56:41 - root - INFO -   Compute Capability: 75
+2025-11-04 19:56:41 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 19:56:41 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 19:56:41 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:56:41 - root - INFO -   Device ID: 0
+2025-11-04 19:56:41 - root - INFO -   Compute Capability: 75
+2025-11-04 19:56:41 - root - INFO - Compute engine initialized: GPU
+2025-11-04 19:56:41 - MainWindow - INFO - Managers initialized
+2025-11-04 19:57:11 - root - INFO - ==================================================
+2025-11-04 19:57:11 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 19:57:11 - root - INFO - ==================================================
+2025-11-04 19:57:12 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 19:57:12 - root - INFO - Splash: Cargando configuración...
+2025-11-04 19:57:12 - root - INFO - Splash: Detectando hardware...
+2025-11-04 19:57:12 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:57:12 - root - INFO -   Device ID: 0
+2025-11-04 19:57:12 - root - INFO -   Compute Capability: 75
+2025-11-04 19:57:12 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 19:57:12 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 19:57:35 - root - INFO - ==================================================
+2025-11-04 19:57:35 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 19:57:35 - root - INFO - ==================================================
+2025-11-04 19:57:36 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 19:57:36 - root - INFO - Splash: Cargando configuración...
+2025-11-04 19:57:36 - root - INFO - Splash: Detectando hardware...
+2025-11-04 19:57:36 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:57:36 - root - INFO -   Device ID: 0
+2025-11-04 19:57:36 - root - INFO -   Compute Capability: 75
+2025-11-04 19:57:36 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 19:57:36 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 19:57:36 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 19:57:36 - root - INFO -   Device ID: 0
+2025-11-04 19:57:36 - root - INFO -   Compute Capability: 75
+2025-11-04 19:57:36 - root - INFO - Compute engine initialized: GPU
+2025-11-04 19:57:36 - MainWindow - INFO - Managers initialized
+2025-11-04 19:57:37 - MainWindow - INFO - MainWindow initialized
+2025-11-04 19:57:37 - root - INFO - Application ready
+2025-11-04 19:58:24 - MainWindow - INFO - Settings updated
+2025-11-04 20:08:34 - root - INFO - ==================================================
+2025-11-04 20:08:34 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:08:34 - root - INFO - ==================================================
+2025-11-04 20:08:35 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:08:35 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:08:35 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:08:35 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:08:35 - root - INFO -   Device ID: 0
+2025-11-04 20:08:35 - root - INFO -   Compute Capability: 75
+2025-11-04 20:08:35 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:08:35 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:08:35 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:08:35 - root - INFO -   Device ID: 0
+2025-11-04 20:08:35 - root - INFO -   Compute Capability: 75
+2025-11-04 20:08:35 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:08:35 - MainWindow - INFO - Managers initialized
+2025-11-04 20:08:36 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:08:36 - root - INFO - Application ready
+2025-11-04 20:08:46 - root - INFO - ==================================================
+2025-11-04 20:08:46 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:08:46 - root - INFO - ==================================================
+2025-11-04 20:08:47 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:08:47 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:08:47 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:08:47 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:08:47 - root - INFO -   Device ID: 0
+2025-11-04 20:08:47 - root - INFO -   Compute Capability: 75
+2025-11-04 20:08:47 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:08:47 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:08:47 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:08:47 - root - INFO -   Device ID: 0
+2025-11-04 20:08:47 - root - INFO -   Compute Capability: 75
+2025-11-04 20:08:47 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:08:47 - MainWindow - INFO - Managers initialized
+2025-11-04 20:08:48 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:08:48 - root - INFO - Application ready
+2025-11-04 20:11:50 - root - INFO - ==================================================
+2025-11-04 20:11:50 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:11:50 - root - INFO - ==================================================
+2025-11-04 20:11:51 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:11:51 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:11:51 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:11:52 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:11:52 - root - INFO -   Device ID: 0
+2025-11-04 20:11:52 - root - INFO -   Compute Capability: 75
+2025-11-04 20:11:52 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:11:52 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:11:52 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:11:52 - root - INFO -   Device ID: 0
+2025-11-04 20:11:52 - root - INFO -   Compute Capability: 75
+2025-11-04 20:11:52 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:11:52 - MainWindow - INFO - Managers initialized
+2025-11-04 20:11:52 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:11:52 - root - INFO - Application ready
+2025-11-04 20:11:59 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:12:35 - root - INFO - ==================================================
+2025-11-04 20:12:35 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:12:35 - root - INFO - ==================================================
+2025-11-04 20:12:36 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:12:36 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:12:36 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:12:36 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:12:36 - root - INFO -   Device ID: 0
+2025-11-04 20:12:36 - root - INFO -   Compute Capability: 75
+2025-11-04 20:12:36 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:12:36 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:12:37 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:12:37 - root - INFO -   Device ID: 0
+2025-11-04 20:12:37 - root - INFO -   Compute Capability: 75
+2025-11-04 20:12:37 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:12:37 - MainWindow - INFO - Managers initialized
+2025-11-04 20:12:37 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:12:37 - root - INFO - Application ready
+2025-11-04 20:14:29 - root - INFO - ==================================================
+2025-11-04 20:14:29 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:14:29 - root - INFO - ==================================================
+2025-11-04 20:14:31 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:14:31 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:14:31 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:14:31 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:14:31 - root - INFO -   Device ID: 0
+2025-11-04 20:14:31 - root - INFO -   Compute Capability: 75
+2025-11-04 20:14:31 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:14:31 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:14:31 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:14:31 - root - INFO -   Device ID: 0
+2025-11-04 20:14:31 - root - INFO -   Compute Capability: 75
+2025-11-04 20:14:31 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:14:31 - MainWindow - INFO - Managers initialized
+2025-11-04 20:14:32 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:14:32 - root - INFO - Application ready
+2025-11-04 20:16:07 - root - INFO - ==================================================
+2025-11-04 20:16:07 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:16:07 - root - INFO - ==================================================
+2025-11-04 20:16:08 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:16:08 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:16:08 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:16:09 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:16:09 - root - INFO -   Device ID: 0
+2025-11-04 20:16:09 - root - INFO -   Compute Capability: 75
+2025-11-04 20:16:09 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:16:09 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:16:09 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:16:09 - root - INFO -   Device ID: 0
+2025-11-04 20:16:09 - root - INFO -   Compute Capability: 75
+2025-11-04 20:16:09 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:16:09 - MainWindow - INFO - Managers initialized
+2025-11-04 20:16:09 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:16:09 - root - INFO - Application ready
+2025-11-04 20:29:33 - root - INFO - ==================================================
+2025-11-04 20:29:33 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:29:33 - root - INFO - ==================================================
+2025-11-04 20:29:34 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:29:34 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:29:34 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:29:35 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:29:35 - root - INFO -   Device ID: 0
+2025-11-04 20:29:35 - root - INFO -   Compute Capability: 75
+2025-11-04 20:29:35 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:29:35 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:29:35 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:29:35 - root - INFO -   Device ID: 0
+2025-11-04 20:29:35 - root - INFO -   Compute Capability: 75
+2025-11-04 20:29:35 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:29:35 - MainWindow - INFO - Managers initialized
+2025-11-04 20:29:35 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:29:35 - root - INFO - Application ready
+2025-11-04 20:29:42 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:29:51 - MainWindow - INFO - Antenna placed at: -2.9300760653330116, -79.0051317214966
+2025-11-04 20:29:51 - AntennaManager - INFO - Antenna added: Antenna 1 (72a8cd2c-9204-4b5c-8d50-4b84deca6ee7)
+2025-11-04 20:29:51 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:30:04 - MapWidget - INFO - Map mode set to: select
+2025-11-04 20:30:16 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:30:16 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:30:16 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:30:19 - HeatmapGenerator - ERROR - Error generating heatmap: No module named 'matplotlib'
+2025-11-04 20:30:19 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:30:19 - MainWindow - INFO - Simulation completed
+2025-11-04 20:35:48 - root - INFO - ==================================================
+2025-11-04 20:35:48 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:35:48 - root - INFO - ==================================================
+2025-11-04 20:35:49 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:35:49 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:35:49 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:35:50 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:35:50 - root - INFO -   Device ID: 0
+2025-11-04 20:35:50 - root - INFO -   Compute Capability: 75
+2025-11-04 20:35:50 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:35:50 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:35:50 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:35:50 - root - INFO -   Device ID: 0
+2025-11-04 20:35:50 - root - INFO -   Compute Capability: 75
+2025-11-04 20:35:50 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:35:50 - MainWindow - INFO - Managers initialized
+2025-11-04 20:35:50 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:35:50 - root - INFO - Application ready
+2025-11-04 20:35:56 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:36:01 - MainWindow - INFO - Antenna placed at: -2.929883198739202, -79.00461673736574
+2025-11-04 20:36:01 - AntennaManager - INFO - Antenna added: Antenna 1 (0cac09e7-f14e-4ef2-b9d7-a69e64936ca7)
+2025-11-04 20:36:01 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:36:08 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:36:08 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:36:08 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:36:10 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:36:10 - MainWindow - INFO - Simulation completed
+2025-11-04 20:37:08 - AntennaManager - INFO - Antenna removed: 0cac09e7-f14e-4ef2-b9d7-a69e64936ca7
+2025-11-04 20:37:18 - MapWidget - INFO - Map mode set to: move_antenna
+2025-11-04 20:37:19 - MapWidget - INFO - Map mode set to: select
+2025-11-04 20:38:16 - root - INFO - ==================================================
+2025-11-04 20:38:16 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:38:16 - root - INFO - ==================================================
+2025-11-04 20:38:17 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:38:17 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:38:17 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:38:18 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:38:18 - root - INFO -   Device ID: 0
+2025-11-04 20:38:18 - root - INFO -   Compute Capability: 75
+2025-11-04 20:38:18 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:38:18 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:38:18 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:38:18 - root - INFO -   Device ID: 0
+2025-11-04 20:38:18 - root - INFO -   Compute Capability: 75
+2025-11-04 20:38:18 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:38:18 - MainWindow - INFO - Managers initialized
+2025-11-04 20:38:18 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:38:18 - root - INFO - Application ready
+2025-11-04 20:38:23 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:38:31 - MainWindow - INFO - Antenna placed at: -2.9295403247125815, -79.00474548339845
+2025-11-04 20:38:31 - AntennaManager - INFO - Antenna added: Antenna 1 (8630c5f5-c0c9-463c-9563-4565e2817100)
+2025-11-04 20:38:31 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:43:12 - root - INFO - ==================================================
+2025-11-04 20:43:12 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:43:12 - root - INFO - ==================================================
+2025-11-04 20:43:13 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:43:13 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:43:13 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:43:13 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:43:13 - root - INFO -   Device ID: 0
+2025-11-04 20:43:13 - root - INFO -   Compute Capability: 75
+2025-11-04 20:43:13 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:43:13 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:43:13 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:43:13 - root - INFO -   Device ID: 0
+2025-11-04 20:43:13 - root - INFO -   Compute Capability: 75
+2025-11-04 20:43:13 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:43:13 - MainWindow - INFO - Managers initialized
+2025-11-04 20:43:14 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:43:14 - root - INFO - Application ready
+2025-11-04 20:44:00 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:44:01 - MainWindow - INFO - Antenna placed at: -2.9304403688084495, -79.004123210907
+2025-11-04 20:44:01 - AntennaManager - INFO - Antenna added: Antenna 1 (1797b553-6e81-4aca-9c41-a9d6647dcaa1)
+2025-11-04 20:44:01 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:44:21 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:44:21 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:44:21 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:44:22 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:44:22 - MainWindow - INFO - Simulation completed
+2025-11-04 20:49:39 - root - INFO - ==================================================
+2025-11-04 20:49:39 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:49:39 - root - INFO - ==================================================
+2025-11-04 20:49:40 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:49:40 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:49:40 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:49:41 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:49:41 - root - INFO -   Device ID: 0
+2025-11-04 20:49:41 - root - INFO -   Compute Capability: 75
+2025-11-04 20:49:41 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:49:41 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:49:41 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:49:41 - root - INFO -   Device ID: 0
+2025-11-04 20:49:41 - root - INFO -   Compute Capability: 75
+2025-11-04 20:49:41 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:49:41 - MainWindow - INFO - Managers initialized
+2025-11-04 20:49:41 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:49:41 - root - INFO - Application ready
+2025-11-04 20:49:49 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:49:51 - MainWindow - INFO - Antenna placed at: -2.9305475168668993, -79.00369405746461
+2025-11-04 20:49:51 - AntennaManager - INFO - Antenna added: Antenna 1 (157e3f83-bcd0-461a-ba30-47a790412deb)
+2025-11-04 20:49:51 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:51:03 - AntennaManager - INFO - Antenna updated: 157e3f83-bcd0-461a-ba30-47a790412deb
+2025-11-04 20:51:03 - ProjectPanel - INFO - Antenna properties updated: 157e3f83-bcd0-461a-ba30-47a790412deb
+2025-11-04 20:51:30 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:51:30 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:51:30 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:51:30 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:51:30 - MainWindow - INFO - Simulation completed
+2025-11-04 20:51:55 - AntennaManager - INFO - Antenna updated: 157e3f83-bcd0-461a-ba30-47a790412deb
+2025-11-04 20:51:55 - ProjectPanel - INFO - Antenna properties updated: 157e3f83-bcd0-461a-ba30-47a790412deb
+2025-11-04 20:51:59 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:51:59 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:51:59 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:52:00 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:52:00 - MainWindow - INFO - Simulation completed
+2025-11-04 20:54:24 - root - INFO - ==================================================
+2025-11-04 20:54:24 - root - INFO - RF Coverage Tool - Starting
+2025-11-04 20:54:24 - root - INFO - ==================================================
+2025-11-04 20:54:25 - root - INFO - Splash: Inicializando aplicación...
+2025-11-04 20:54:25 - root - INFO - Splash: Cargando configuración...
+2025-11-04 20:54:25 - root - INFO - Splash: Detectando hardware...
+2025-11-04 20:54:26 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:54:26 - root - INFO -   Device ID: 0
+2025-11-04 20:54:26 - root - INFO -   Compute Capability: 75
+2025-11-04 20:54:26 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-04 20:54:26 - root - INFO - Splash: Preparando interfaz...
+2025-11-04 20:54:26 - root - INFO - GPU detected: NVIDIA GeForce GTX 1660 SUPER
+2025-11-04 20:54:26 - root - INFO -   Device ID: 0
+2025-11-04 20:54:26 - root - INFO -   Compute Capability: 75
+2025-11-04 20:54:26 - root - INFO - Compute engine initialized: GPU
+2025-11-04 20:54:26 - MainWindow - INFO - Managers initialized
+2025-11-04 20:54:26 - MainWindow - INFO - MainWindow initialized
+2025-11-04 20:54:26 - root - INFO - Application ready
+2025-11-04 20:54:33 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-04 20:54:39 - MainWindow - INFO - Antenna placed at: -2.9234971527702798, -78.9939308166504
+2025-11-04 20:54:39 - AntennaManager - INFO - Antenna added: Antenna 1 (c4caf884-8c0e-48a2-bed4-285340ec0881)
+2025-11-04 20:54:39 - MapWidget - INFO - Map mode set to: pan
+2025-11-04 20:54:57 - MainWindow - INFO - Starting simulation...
+2025-11-04 20:54:57 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-04 20:54:57 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-04 20:54:58 - SimulationWorker - INFO - Simulation completed
+2025-11-04 20:54:58 - MainWindow - INFO - Simulation completed

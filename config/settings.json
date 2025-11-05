@@ -1,0 +1,27 @@
+{
+    "application": {
+        "name": "RF Coverage Tool",
+        "version": "1.0.0",
+        "language": "es"
+    },
+    "compute": {
+        "use_gpu": true,
+        "auto_detect": true,
+        "fallback_to_cpu": true
+    },
+    "ui": {
+        "theme": "dark",
+        "map_default_zoom": 13,
+        "default_map_center": [-2.9001, -79.0059]
+    },
+    "paths": {
+        "terrain_data": "data/terrain",
+        "exports": "data/exports",
+        "logs": "logs"
+    },
+    "logging": {
+        "level": "INFO",
+        "max_file_size_mb": 10,
+        "backup_count": 5
+    }
+}
