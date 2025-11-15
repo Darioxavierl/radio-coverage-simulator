@@ -1,12 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import numpy as np
+import logging
 
 class PropagationModel(ABC):
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, name: str, config: Dict[str, Any], compute_module=None):
         self.name = name
         self.config = config
         self.logger = logging.getLogger(f"models.{name}")
+        # Módulo de cómputo (numpy o cupy)
+        if compute_module is None:
+            self.xp = np
+        else:
+            self.xp = compute_module
     
     @abstractmethod
     def calculate_path_loss(self, distance, frequency, **kwargs):

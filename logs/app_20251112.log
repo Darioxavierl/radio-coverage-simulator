@@ -1,0 +1,45 @@
+2025-11-12 08:49:15 - root - INFO - ==================================================
+2025-11-12 08:49:15 - root - INFO - RF Coverage Tool - Starting
+2025-11-12 08:49:15 - root - INFO - ==================================================
+2025-11-12 08:49:16 - root - INFO - Splash: Inicializando aplicación...
+2025-11-12 08:49:16 - root - INFO - Splash: Cargando configuración...
+2025-11-12 08:49:16 - root - INFO - Splash: Detectando hardware...
+2025-11-12 08:49:20 - root - WARNING - Could not get device details: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version
+2025-11-12 08:49:20 - root - INFO - GPU detected: CUDA Device (Unknown)
+2025-11-12 08:49:20 - root - INFO - Splash: Cargando modelos de propagación...
+2025-11-12 08:49:20 - root - INFO - Splash: Preparando interfaz...
+2025-11-12 08:49:21 - root - WARNING - Could not get device details: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version
+2025-11-12 08:49:21 - root - INFO - GPU detected: CUDA Device (Unknown)
+2025-11-12 08:49:21 - root - INFO - Compute engine initialized: GPU
+2025-11-12 08:49:21 - MainWindow - INFO - Managers initialized
+2025-11-12 08:49:26 - MainWindow - INFO - MainWindow initialized
+2025-11-12 08:49:26 - root - INFO - Application ready
+2025-11-12 08:50:16 - MapWidget - INFO - Map mode set to: add_antenna
+2025-11-12 08:50:22 - MainWindow - INFO - Antenna placed at: -2.9047933004856956, -79.03516821239036
+2025-11-12 08:50:22 - AntennaManager - INFO - Antenna added: Antenna 1 (7ecb6e75-bddc-4de0-a992-23ad8c6558d7)
+2025-11-12 08:50:22 - MapWidget - INFO - Map mode set to: pan
+2025-11-12 08:51:07 - AntennaManager - INFO - Antenna updated: 7ecb6e75-bddc-4de0-a992-23ad8c6558d7
+2025-11-12 08:51:07 - ProjectPanel - INFO - Antenna properties updated: 7ecb6e75-bddc-4de0-a992-23ad8c6558d7
+2025-11-12 08:51:24 - MainWindow - INFO - Starting simulation...
+2025-11-12 08:51:24 - SimulationWorker - INFO - Starting simulation for 1 antennas
+2025-11-12 08:51:24 - CoverageCalculator - INFO - Quick coverage calculation for Antenna 1
+2025-11-12 08:51:24 - SimulationWorker - ERROR - Simulation error: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version
+Traceback (most recent call last):
+  File "D:\radio\radio-coverage-simulator\src\workers\simulation_worker.py", line 50, in run
+    coverage = self.calculator.calculate_single_antenna_quick(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\radio\radio-coverage-simulator\src\core\coverage_calculator.py", line 205, in calculate_single_antenna_quick
+    grid_lats_gpu = self.xp.asarray(grid_lats)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\radio\radio-coverage-simulator\.env\Lib\site-packages\cupy\_creation\from_data.py", line 88, in asarray
+    return _core.array(a, dtype, False, order, blocking=blocking)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "cupy\\_core\\core.pyx", line 2502, in cupy._core.core.array
+  File "cupy\\_core\\core.pyx", line 2529, in cupy._core.core.array
+  File "cupy\\_core\\core.pyx", line 2714, in cupy._core.core._array_default
+  File "cupy\\_core\\core.pyx", line 2662, in cupy._core.core._try_skip_h2d_copy
+  File "cupy\\cuda\\device.pyx", line 40, in cupy.cuda.device.get_device_id
+  File "cupy_backends\\cuda\\api\\runtime.pyx", line 202, in cupy_backends.cuda.api.runtime.getDevice
+  File "cupy_backends\\cuda\\api\\runtime.pyx", line 146, in cupy_backends.cuda.api.runtime.check_status
+cupy_backends.cuda.api.runtime.CUDARuntimeError: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version
+2025-11-12 08:51:24 - MainWindow - ERROR - Simulation error: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version

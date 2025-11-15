@@ -1,6 +1,7 @@
 import logging
+from src.core.models.base_model import PropagationModel
 
-class FreeSpacePathLossModel:
+class FreeSpacePathLossModel(PropagationModel):
     """
     Modelo de pérdidas de espacio libre (FSPL)
     
@@ -10,10 +11,8 @@ class FreeSpacePathLossModel:
     - f = frecuencia en MHz
     """
     
-    def __init__(self, config=None):
-        self.config = config or {}
-        self.logger = logging.getLogger("FreeSpaceModel")
-        self.name = "Free Space Path Loss"
+    def __init__(self, config=None, compute_module=None):
+        super().__init__("Free Space Path Loss", config or {}, compute_module)
     
     def calculate_path_loss(self, distances, frequency, tx_height=None, 
                            terrain_heights=None, **kwargs):

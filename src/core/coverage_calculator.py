@@ -215,6 +215,11 @@ class CoverageCalculator:
         )
         
         # Path loss
+        # Si el modelo no tiene self.xp configurado, configurarlo ahora
+        if not hasattr(model, 'xp') or model.xp is None:
+            model.xp = self.xp
+            self.logger.warning(f"Model {model.name} didn't have xp set, configured now")
+        
         terrain_heights = self.xp.zeros_like(distances)  # Terreno plano por ahora
         
         path_loss = model.calculate_path_loss(

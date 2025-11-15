@@ -32,7 +32,12 @@ class SimulationWorker(QObject):
             
             # Modelo de propagación
             from src.core.models.traditional.free_space import FreeSpacePathLossModel
-            model = FreeSpacePathLossModel()
+            model = FreeSpacePathLossModel(
+            config=self.config,
+            compute_module=self.calculator.xp  # CuPy o NumPy
+        )
+            
+            self.logger.info(f"Model initialized with {model.xp.__name__}")
             
             self.status_message.emit("Calculando cobertura...")
             self.progress.emit(30)
