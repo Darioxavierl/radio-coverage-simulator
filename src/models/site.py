@@ -1,3 +1,7 @@
+from dataclasses import dataclass, field
+from typing import Dict
+import uuid
+
 @dataclass
 class Site:
     """Representa un sitio/emplazamiento que puede tener múltiples antenas"""
@@ -43,3 +47,12 @@ class Site:
             'address': self.address,
             'notes': self.notes
         }
+    
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Site':
+        """Deserializa desde diccionario"""
+        site = cls()
+        for key, value in data.items():
+            if hasattr(site, key):
+                setattr(site, key, value)
+        return site

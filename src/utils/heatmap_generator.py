@@ -3,6 +3,14 @@ import base64
 from io import BytesIO
 import logging
 
+# Configurar matplotlib para usar backend no-interactivo (thread-safe)
+import matplotlib
+matplotlib.use('Agg')  # Debe estar antes de importar pyplot
+
+from matplotlib import pyplot as plt
+from matplotlib.colors import Normalize
+import matplotlib.cm as cm
+
 class HeatmapGenerator:
     """Genera imágenes de heatmap para cobertura RF"""
     
@@ -24,10 +32,6 @@ class HeatmapGenerator:
             Imagen PNG como data URL (base64)
         """
         try:
-            from matplotlib import pyplot as plt
-            from matplotlib.colors import Normalize
-            import matplotlib.cm as cm
-            
             # Normalizar valores
             norm = Normalize(vmin=vmin, vmax=vmax)
             cmap = cm.get_cmap(colormap)

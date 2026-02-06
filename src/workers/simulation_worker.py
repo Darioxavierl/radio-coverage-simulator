@@ -2,7 +2,9 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 import logging
 from typing import List, Dict
-from src.models.antenna import Antenna
+from models.antenna import Antenna
+from core.models.traditional.free_space import FreeSpacePathLossModel
+from utils.heatmap_generator import HeatmapGenerator
 
 class SimulationWorker(QObject):
     """Worker que ejecuta simulaciones en thread separado"""
@@ -30,9 +32,8 @@ class SimulationWorker(QObject):
             self.status_message.emit("Preparando simulación...")
             self.progress.emit(10)
             
-            # Modelo de propagación
-            from src.core.models.traditional.free_space import FreeSpacePathLossModel
-            model = FreeSpacePathLossModel()
+            # Modelo de propagación - usar el seleccionado en config
+            model = self._get_propagation_model()
             
             self.status_message.emit("Calculando cobertura...")
             self.progress.emit(30)
@@ -47,17 +48,19 @@ class SimulationWorker(QObject):
                 self.status_message.emit(f"Calculando antena {i+1}/{len(self.antennas)}...")
                 
                 # Cálculo rápido centrado en la antena
+                radius_km = self.config.get('radius_km', 5.0)
+                resolution = self.config.get('resolution', 100)
+                
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,
                     center_lat=antenna.latitude,
                     center_lon=antenna.longitude,
-                    radius_km=5.0,  # 5 km de radio
-                    resolution=100,  # 100x100 puntos
+                    radius_km=radius_km,
+                    resolution=resolution,
                     model=model
                 )
                 
                 # Generar imagen de heatmap
-                from src.utils.heatmap_generator import HeatmapGenerator
                 heatmap_gen = HeatmapGenerator()
                 
                 image_url = heatmap_gen.generate_heatmap_image(
@@ -120,19 +123,22 @@ class SimulationWorker(QObject):
     
     def _get_propagation_model(self):
         """Obtiene el modelo de propagación configurado"""
-        model_name = self.config.get('model', 'okumura_hata')
+        model_name = self.config.get('model', 'free_space')
         
-        if model_name == 'okumura_hata':
+        self.logger.info(f"Using propagation model: {model_name}")
+        
+        if model_name == 'free_space':
+            from core.models.traditional.free_space import FreeSpacePathLossModel
+            return FreeSpacePathLossModel(compute_module=self.calculator.xp)
+        
+        elif model_name == 'okumura_hata':
             from core.models.traditional.okumura_hata import OkumuraHataModel
-            return OkumuraHataModel(config=self.config)
-        elif model_name == 'cost231':
-            from core.models.traditional.cost231 import COST231Model
-            return COST231Model(config=self.config)
-        # ... otros modelos
+            return OkumuraHataModel(compute_module=self.calculator.xp)
         
-        # Default
-        from core.models.traditional.okumura_hata import OkumuraHataModel
-        return OkumuraHataModel(config=self.config)
+        # Default: Free Space
+        self.logger.warning(f"Unknown model '{model_name}', using Free Space")
+        from core.models.traditional.free_space import FreeSpacePathLossModel
+        return FreeSpacePathLossModel(compute_module=self.calculator.xp)
     
     def _interpolate_terrain(self, grid_lats, grid_lons):
         """Interpola alturas de terreno para el grid"""

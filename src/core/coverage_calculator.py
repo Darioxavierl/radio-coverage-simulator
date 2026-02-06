@@ -9,8 +9,12 @@ class CoverageCalculator:
     
     def __init__(self, compute_engine: ComputeEngine):
         self.engine = compute_engine
-        self.xp = compute_engine.xp
         self.logger = logging.getLogger("CoverageCalculator")
+    
+    @property
+    def xp(self):
+        """Acceso dinámico al módulo de cómputo actual"""
+        return self.engine.xp
     
     def calculate_single_antenna_coverage(
         self, 
@@ -182,8 +186,6 @@ class CoverageCalculator:
         """
         self.logger.info(f"Quick coverage calculation for {antenna.name}")
         
-        import numpy as np
-        
         # Convertir km a grados (aproximado)
         # 1 grado ≈ 111 km
         delta_deg = radius_km / 111.0
@@ -201,7 +203,7 @@ class CoverageCalculator:
         
         # Transferir a GPU si disponible
         if self.engine.use_gpu:
-            print("Uso GPU")
+            self.logger.debug("Using GPU for calculation")
             grid_lats_gpu = self.xp.asarray(grid_lats)
             grid_lons_gpu = self.xp.asarray(grid_lons)
         else:
@@ -215,7 +217,10 @@ class CoverageCalculator:
         )
         
         # Path loss
-        terrain_heights = self.xp.zeros_like(distances)  # Terreno plano por ahora
+        # TODO: Cargar datos de terreno reales desde archivos DEM/DTED
+        # Por ahora usa terreno plano (altura 0) que es suficiente para
+        # modelos empíricos como Okumura-Hata que no requieren perfil detallado
+        terrain_heights = self.xp.zeros_like(distances)
         
         path_loss = model.calculate_path_loss(
             distances=distances,

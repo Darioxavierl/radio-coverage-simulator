@@ -1,5 +1,35 @@
 import logging
 
+# Detección automática de CuPy - sin forzar CPU
+_cupy_checked = False
+_cupy_module = None
+_cupy_available = False
+
+
+def _try_import_cupy():
+    """Intenta importar cupy de forma segura"""
+    global _cupy_checked, _cupy_module, _cupy_available
+    
+    if _cupy_checked:
+        return _cupy_module, _cupy_available
+    
+    _cupy_checked = True
+    
+    try:
+        import cupy as cp
+        # Verificar que GPU esté realmente disponible
+        _ = cp.cuda.Device()
+        _cupy_module = cp
+        _cupy_available = True
+        logging.info("CuPy imported successfully - GPU available")
+        return cp, True
+    except Exception as e:
+        logging.info(f"CuPy not available - using CPU mode: {type(e).__name__}: {e}")
+        _cupy_module = None
+        _cupy_available = False
+        return None, False
+
+
 class GPUDetector:
     def __init__(self):
         self.has_cuda = False
@@ -10,7 +40,10 @@ class GPUDetector:
     
     def _detect(self):
         try:
-            import cupy as cp
+            cp, available = _try_import_cupy()
+            
+            if not available:
+                raise ImportError("CuPy not available")
             self.cupy_available = True
             self.has_cuda = True
             
@@ -50,16 +83,12 @@ class GPUDetector:
     def get_compute_module(self):
         """Retorna cupy o numpy según disponibilidad"""
         if self.cupy_available:
-            try:
-                import cupy as cp
+            cp, available = _try_import_cupy()
+            if available:
                 return cp
-            except:
-                logging.warning("CuPy import failed, falling back to NumPy")
-                import numpy as np
-                return np
-        else:
-            import numpy as np
-            return np
+        
+        import numpy as np
+        return np
     
     def get_device_info_string(self):
         """Retorna información formateada del dispositivo"""

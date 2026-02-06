@@ -1,12 +1,24 @@
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
+import uuid
+import json
+from datetime import datetime
+from models.antenna import Antenna
+from models.site import Site
+
 @dataclass
 class Project:
     """Representa un proyecto completo"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "Untitled Project"
     description: str = ""
-    created_date: str = ""
-    modified_date: str = ""
+    created_date: str = field(default_factory=lambda: datetime.now().isoformat())
+    modified_date: str = field(default_factory=lambda: datetime.now().isoformat())
     author: str = ""
+    
+    # Control interno
+    _filepath: Optional[str] = None  # Ruta del archivo .rfproj
+    _has_unsaved_changes: bool = False  # Flag de cambios sin guardar
     
     # Configuración del proyecto
     center_lat: float = 0.0
@@ -25,8 +37,14 @@ class Project:
         """Guarda proyecto en archivo .rfproj (JSON)"""
         import json
         from datetime import datetime
+        import os
+        
+        # Crear directorio si no existe
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         
         self.modified_date = datetime.now().isoformat()
+        self._filepath = filepath
+        self._has_unsaved_changes = False
         
         project_data = {
             'id': self.id,
@@ -74,4 +92,20 @@ class Project:
         project.antennas = {aid: Antenna.from_dict(adata) 
                            for aid, adata in data.get('antennas', {}).items()}
         
+        # Guardar filepath y marcar como guardado
+        project._filepath = filepath
+        project._has_unsaved_changes = False
+        
         return project
+    
+    def mark_as_modified(self):
+        """Marca el proyecto como modificado"""
+        self._has_unsaved_changes = True
+    
+    def has_unsaved_changes(self) -> bool:
+        """Retorna si hay cambios sin guardar"""
+        return self._has_unsaved_changes
+    
+    def get_filepath(self) -> Optional[str]:
+        """Retorna la ruta del archivo del proyecto"""
+        return self._filepath

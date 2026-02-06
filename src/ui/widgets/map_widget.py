@@ -27,12 +27,21 @@ class MapBridge(QObject):
     remove_coverage_layer = pyqtSignal(str)
     set_map_mode = pyqtSignal(str)
     center_map = pyqtSignal(float, float, int)
+    clear_all_markers = pyqtSignal()
+    clear_all_coverage = pyqtSignal()
+    request_map_center = pyqtSignal()
     
     # Señales de JS a Python
     antenna_clicked_on_map = pyqtSignal(float, float)
     antenna_marker_moved = pyqtSignal(str, float, float)
     antenna_marker_selected = pyqtSignal(str)
     map_clicked = pyqtSignal(float, float)
+    map_center_response = pyqtSignal(float, float, int)  # lat, lon, zoom
+    
+    @pyqtSlot(float, float, int)
+    def on_map_center(self, lat: float, lon: float, zoom: int):
+        """Callback con la posición actual del mapa"""
+        self.map_center_response.emit(lat, lon, zoom)
     
     @pyqtSlot(float, float)
     def on_map_click(self, lat: float, lon: float):
@@ -61,6 +70,7 @@ class MapWidget(QWidget):
         super().__init__(parent)
         self.logger = logging.getLogger("MapWidget")
         self.current_mode = MapMode.PAN
+        self._map_center_cache = {'lat': 0, 'lng': 0, 'zoom': 13}
         
         self._setup_ui()
         self._setup_bridge()
@@ -87,10 +97,15 @@ class MapWidget(QWidget):
         self.bridge.map_clicked.connect(self._handle_map_click)
         self.bridge.antenna_marker_moved.connect(self.antenna_moved)
         self.bridge.antenna_marker_selected.connect(self.antenna_selected)
+        self.bridge.map_center_response.connect(self._update_map_center_cache)
         
         # Registrar bridge en el canal
         self.channel.registerObject("bridge", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
+    
+    def _update_map_center_cache(self, lat: float, lon: float, zoom: int):
+        """Actualiza el cache de la posición del mapa"""
+        self._map_center_cache = {'lat': lat, 'lng': lon, 'zoom': zoom}
     
     def _load_map_html(self) -> str:
         """Carga plantilla HTML con Leaflet"""
@@ -161,6 +176,15 @@ class MapWidget(QWidget):
             
             // Eventos del mapa
             map.on('click', handleMapClick);
+            
+            // Actualizar centro cuando el mapa se mueve
+            map.on('moveend', function() {
+                const center = map.getCenter();
+                const zoom = map.getZoom();
+                if (bridge) {
+                    bridge.on_map_center(center.lat, center.lng, zoom);
+                }
+            });
             
             console.log('Map initialized');
         }
@@ -310,6 +334,32 @@ class MapWidget(QWidget):
             map.setView([lat, lon], zoom);
         }
         
+        // Limpiar todos los marcadores
+        function clearAllMarkers() {
+            console.log('Clearing all antenna markers');
+            Object.keys(antennaMarkers).forEach(id => {
+                map.removeLayer(antennaMarkers[id]);
+            });
+            antennaMarkers = {};
+            selectedMarker = null;
+        }
+        
+        // Limpiar todas las capas de cobertura
+        function clearAllCoverage() {
+            console.log('Clearing all coverage layers');
+            Object.keys(coverageLayers).forEach(id => {
+                map.removeLayer(coverageLayers[id]);
+            });
+            coverageLayers = {};
+        }
+        
+        // Obtener centro del mapa
+        function getMapCenter() {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            bridge.on_map_center(center.lat, center.lng, zoom);
+        }
+        
         // Inicializar QWebChannel
         new QWebChannel(qt.webChannelTransport, function(channel) {
             bridge = channel.objects.bridge;
@@ -322,6 +372,9 @@ class MapWidget(QWidget):
             bridge.remove_coverage_layer.connect(removeCoverageLayer);
             bridge.set_map_mode.connect(setMapMode);
             bridge.center_map.connect(centerMap);
+            bridge.clear_all_markers.connect(clearAllMarkers);
+            bridge.clear_all_coverage.connect(clearAllCoverage);
+            bridge.request_map_center.connect(getMapCenter);
             
             console.log('Bridge connected');
             initMap();
@@ -386,6 +439,24 @@ class MapWidget(QWidget):
     def center_on_location(self, lat: float, lon: float, zoom: int = 15):
         """Centra el mapa en una ubicación"""
         self.bridge.center_map.emit(lat, lon, zoom)
+        self._map_center_cache = {'lat': lat, 'lng': lon, 'zoom': zoom}
+    
+    def clear_all_antennas(self):
+        """Elimina todos los marcadores de antenas del mapa"""
+        self.bridge.clear_all_markers.emit()
+        self.logger.info("All antenna markers cleared")
+    
+    def clear_coverage_layers(self):
+        """Elimina todas las capas de cobertura del mapa"""
+        self.bridge.clear_all_coverage.emit()
+        self.logger.info("All coverage layers cleared")
+    
+    def get_center(self) -> dict:
+        """Retorna la posición actual del mapa"""
+        # Solicitar posición actual desde JS
+        self.bridge.request_map_center.emit()
+        # Retornar último valor conocido (cache)
+        return self._map_center_cache
     
     def _handle_map_click(self, lat: float, lon: float):
         """Maneja clics en el mapa según el modo actual"""

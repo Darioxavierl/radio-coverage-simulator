@@ -42,11 +42,11 @@ class Antenna:
     electrical_tilt: float = 0.0
     
     # Patrón de antena
-    antenna_type: AntennaType = AntennaType.SECTORIAL
+    antenna_type: AntennaType = AntennaType.OMNIDIRECTIONAL  # Por defecto omnidireccional
     pattern_file: str = "sector_65deg.json"
     horizontal_beamwidth: float = 65.0
     vertical_beamwidth: float = 10.0
-    gain_dbi: float = 18.0
+    gain_dbi: float = 2.0  # Ganancia típica omnidireccional: 2-3 dBi, sectorial: 15-18 dBi
     
     # Visualización
     color: str = "#FF0000"

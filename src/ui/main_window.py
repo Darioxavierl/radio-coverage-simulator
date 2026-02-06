@@ -3,7 +3,12 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QFileDialog, QProgressBar, QLabel)
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QActionGroup
-from src.ui.widgets.map_widget import MapMode
+from src.ui.widgets.map_widget import MapMode, MapWidget
+from src.core.compute_engine import ComputeEngine
+from src.core.antenna_manager import AntennaManager
+from src.core.site_manager import SiteManager
+from src.core.project_manager import ProjectManager
+from src.core.coverage_calculator import CoverageCalculator
 import logging
 
 class MainWindow(QMainWindow):
@@ -30,17 +35,12 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._connect_signals()
         self._load_settings()
+        self._create_default_project()
         
         self.logger.info("MainWindow initialized")
     
     def _init_managers(self):
         """Inicializa los managers del sistema"""
-        from src.core.compute_engine import ComputeEngine
-        from src.core.antenna_manager import AntennaManager
-        from src.core.site_manager import SiteManager
-        from src.core.project_manager import ProjectManager
-        from src.core.coverage_calculator import CoverageCalculator
-        
         # Compute engine
         use_gpu = self.config.settings['compute'].get('use_gpu', True)
         self.compute_engine = ComputeEngine(use_gpu=use_gpu)
@@ -67,7 +67,6 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Mapa (centro)
-        from src.ui.widgets.map_widget import MapWidget
         self.map_widget = MapWidget()
         main_layout.addWidget(self.map_widget, stretch=3)
         
@@ -322,6 +321,11 @@ class MainWindow(QMainWindow):
         # Señales del project panel
         self.project_panel.antenna_selected.connect(self.select_antenna)
         self.project_panel.antenna_delete_requested.connect(self.delete_antenna)
+        
+        # Marcar proyecto como modificado cuando hay cambios
+        self.antenna_manager.antenna_added.connect(self._mark_project_modified)
+        self.antenna_manager.antenna_removed.connect(self._mark_project_modified)
+        self.antenna_manager.antenna_modified.connect(self._mark_project_modified)
     
     def _load_settings(self):
         """Carga configuración inicial"""
@@ -331,6 +335,21 @@ class MainWindow(QMainWindow):
         self.map_widget.center_on_location(
             default_center[0], default_center[1], default_zoom
         )
+    
+    def _create_default_project(self):
+        """Crea un proyecto por defecto al iniciar la aplicación"""
+        from src.models.project import Project
+        self.current_project = Project(name="Proyecto Sin Título")
+        
+        # Guardar posición inicial del mapa
+        default_center = self.config.settings['ui']['default_map_center']
+        default_zoom = self.config.settings['ui']['map_default_zoom']
+        self.current_project.center_lat = default_center[0]
+        self.current_project.center_lon = default_center[1]
+        self.current_project.zoom_level = default_zoom
+        
+        self._update_window_title()
+        self.logger.info("Default project created")
     
     # ===== Slots para manejo de antenas =====
     
@@ -423,6 +442,20 @@ class MainWindow(QMainWindow):
     
     # ===== Manejo de proyectos =====
     
+    def _mark_project_modified(self):
+        """Marca el proyecto actual como modificado"""
+        if self.current_project:
+            self.current_project.mark_as_modified()
+            self._update_window_title()
+    
+    def _update_window_title(self):
+        """Actualiza el título de la ventana con el nombre del proyecto"""
+        if self.current_project:
+            modified_marker = " *" if self.current_project.has_unsaved_changes() else ""
+            self.setWindowTitle(f"RF Coverage Tool - {self.current_project.name}{modified_marker}")
+        else:
+            self.setWindowTitle("RF Coverage Tool")
+    
     def new_project(self):
         """Crea un nuevo proyecto"""
         # Preguntar si guardar proyecto actual
@@ -444,10 +477,34 @@ class MainWindow(QMainWindow):
         from src.models.project import Project
         self.current_project = Project(name="Nuevo Proyecto")
         
+        # Detener simulación si está corriendo
+        if self.simulation_running:
+            self.stop_simulation()
+        
         # Limpiar todo
         self.antenna_manager.antennas.clear()
+        self.site_manager.sites.clear()
+        self.map_widget.clear_all_antennas()
+        self.map_widget.clear_coverage_layers()
+        
+        # Resetear barra de progreso
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setValue(0)
+        
+        # Actualizar paneles
         self.project_panel.refresh()
         
+        # Resetear vista del mapa
+        default_center = self.config.settings['ui']['default_map_center']
+        default_zoom = self.config.settings['ui']['map_default_zoom']
+        self.map_widget.center_on_location(default_center[0], default_center[1], default_zoom)
+        
+        # Guardar posición inicial en el proyecto
+        self.current_project.center_lat = default_center[0]
+        self.current_project.center_lon = default_center[1]
+        self.current_project.zoom_level = default_zoom
+        
+        self._update_window_title()
         self.logger.info("New project created")
         self.status_label.setText("Nuevo proyecto creado")
     
@@ -463,11 +520,23 @@ class MainWindow(QMainWindow):
                 from src.models.project import Project
                 self.current_project = Project.load_from_file(filename)
                 
+                # Detener simulación si está corriendo
+                if self.simulation_running:
+                    self.stop_simulation()
+                
+                # Limpiar estado anterior
+                self.map_widget.clear_all_antennas()
+                self.map_widget.clear_coverage_layers()
+                
+                # Resetear barra de progreso
+                self.progress_bar.setVisible(False)
+                self.progress_bar.setValue(0)
+                
                 # Cargar antenas y sitios
                 self.antenna_manager.antennas = self.current_project.antennas
                 self.site_manager.sites = self.current_project.sites
                 
-                # Actualizar mapa
+                # Actualizar mapa con antenas
                 for antenna in self.antenna_manager.get_all_antennas():
                     self.map_widget.add_antenna(
                         antenna.id, antenna.latitude, antenna.longitude,
@@ -483,7 +552,7 @@ class MainWindow(QMainWindow):
                 
                 # Actualizar UI
                 self.project_panel.refresh()
-                self.setWindowTitle(f"RF Coverage Tool - {self.current_project.name}")
+                self._update_window_title()
                 
                 self.logger.info(f"Project loaded: {filename}")
                 self.status_label.setText(f"Proyecto cargado: {self.current_project.name}")
@@ -498,15 +567,20 @@ class MainWindow(QMainWindow):
             self.save_project_as()
             return
         
+        # Si no tiene filepath, usar save_as
+        filepath = self.current_project.get_filepath()
+        if not filepath:
+            self.save_project_as()
+            return
+        
         try:
             # Actualizar datos del proyecto
-            self.current_project.antennas = self.antenna_manager.antennas
-            self.current_project.sites = self.site_manager.sites
+            self._update_project_before_save()
             
             # Guardar
-            filepath = f"data/projects/{self.current_project.name}.rfproj"
             self.current_project.save_to_file(filepath)
             
+            self._update_window_title()
             self.logger.info(f"Project saved: {filepath}")
             self.status_label.setText("Proyecto guardado")
             
@@ -514,8 +588,29 @@ class MainWindow(QMainWindow):
             self.logger.error(f"Error saving project: {e}")
             QMessageBox.critical(self, "Error", f"No se pudo guardar el proyecto:\n{e}")
     
+    def _update_project_before_save(self):
+        """Actualiza los datos del proyecto antes de guardar"""
+        if not self.current_project:
+            return
+        
+        # Actualizar antenas y sitios
+        self.current_project.antennas = self.antenna_manager.antennas
+        self.current_project.sites = self.site_manager.sites
+        
+        # Actualizar posición actual del mapa
+        map_center = self.map_widget.get_center()  # Necesitaremos implementar esto
+        if map_center:
+            self.current_project.center_lat = map_center['lat']
+            self.current_project.center_lon = map_center['lng']
+            self.current_project.zoom_level = map_center.get('zoom', 13)
+    
     def save_project_as(self):
         """Guarda el proyecto con un nuevo nombre"""
+        # Si no hay proyecto, crear uno
+        if not self.current_project:
+            from src.models.project import Project
+            self.current_project = Project(name="Nuevo Proyecto")
+        
         filename, _ = QFileDialog.getSaveFileName(
             self, "Guardar Proyecto Como", "data/projects",
             "RF Projects (*.rfproj)"
@@ -526,7 +621,13 @@ class MainWindow(QMainWindow):
                 filename += '.rfproj'
             
             try:
+                # Actualizar datos del proyecto
+                self._update_project_before_save()
+                
+                # Guardar
                 self.current_project.save_to_file(filename)
+                
+                self._update_window_title()
                 self.logger.info(f"Project saved as: {filename}")
                 self.status_label.setText(f"Proyecto guardado: {filename}")
             except Exception as e:
@@ -736,8 +837,9 @@ class MainWindow(QMainWindow):
     
     def project_has_changes(self) -> bool:
         """Verifica si el proyecto tiene cambios sin guardar"""
-        # TODO: Implementar tracking de cambios
-        return False
+        if not self.current_project:
+            return False
+        return self.current_project.has_unsaved_changes()
     
     def closeEvent(self, event):
         """Maneja el cierre de la aplicación"""

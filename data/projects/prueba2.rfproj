@@ -1,0 +1,41 @@
+{
+    "id": "ca373cde-6395-4417-b708-2599341094fc",
+    "name": "Proyecto Sin Título",
+    "description": "",
+    "created_date": "2026-02-05T21:14:29.659015",
+    "modified_date": "2026-02-05T21:15:00.027906",
+    "author": "",
+    "center_lat": -2.9051531409770095,
+    "center_lon": -78.98208618164064,
+    "zoom_level": 13,
+    "terrain_file": null,
+    "sites": {},
+    "antennas": {
+        "80a7ec60-ff1b-46ef-ba05-5a5ffa5b6f4c": {
+            "id": "80a7ec60-ff1b-46ef-ba05-5a5ffa5b6f4c",
+            "name": "Antenna 1",
+            "site_id": null,
+            "latitude": -2.910039192008329,
+            "longitude": -79.00980949401855,
+            "height_agl": 30.0,
+            "frequency_mhz": 1800.0,
+            "bandwidth_mhz": 20.0,
+            "tx_power_dbm": 43.0,
+            "technology": "LTE 1800",
+            "azimuth": 0.0,
+            "mechanical_tilt": 0.0,
+            "electrical_tilt": 0.0,
+            "antenna_type": "sectorial",
+            "pattern_file": "sector_65deg.json",
+            "horizontal_beamwidth": 65.0,
+            "vertical_beamwidth": 10.0,
+            "gain_dbi": 18.0,
+            "color": "#FF0000",
+            "visible": true,
+            "show_coverage": true,
+            "enabled": true,
+            "notes": ""
+        }
+    },
+    "simulation_config": {}
+}
