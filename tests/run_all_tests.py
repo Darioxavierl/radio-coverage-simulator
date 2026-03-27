@@ -71,10 +71,10 @@ def run_all_tests():
     print("RESUMEN DE TESTS")
     print("="*70)
     print(f"Tests ejecutados: {result.testsRun}")
-    print(f"✅ Exitosos: {result.testsRun - len(result.failures) - len(result.errors) - len(result.skipped)}")
-    print(f"❌ Fallidos: {len(result.failures)}")
-    print(f"💥 Errores: {len(result.errors)}")
-    print(f"⏭️  Omitidos: {len(result.skipped)}")
+    print(f"[OK] Exitosos: {result.testsRun - len(result.failures) - len(result.errors) - len(result.skipped)}")
+    print(f"[FAIL] Fallidos: {len(result.failures)}")
+    print(f"[ERROR] Errores: {len(result.errors)}")
+    print(f"[SKIP] Omitidos: {len(result.skipped)}")
     
     if result.skipped:
         print("\nTests omitidos:")

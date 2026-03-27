@@ -143,10 +143,10 @@ class TestModelConsistency(unittest.TestCase):
             # Deben ser iguales (tolerancia por errores numéricos)
             np.testing.assert_array_almost_equal(pl_cpu, pl_gpu_cpu, decimal=10)
             
-            print(f"\n  CPU results: {pl_cpu}")
+            print(f"  CPU results: {pl_cpu}")
             print(f"  GPU results: {pl_gpu_cpu}")
             print(f"  Max difference: {np.max(np.abs(pl_cpu - pl_gpu_cpu)):.2e} dB")
-            print("  ✅ CPU and GPU results are consistent")
+            print("  [OK] CPU and GPU results are consistent")
             
         except ImportError:
             self.skipTest("CuPy not available - cannot test GPU consistency")

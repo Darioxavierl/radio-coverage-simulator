@@ -17,53 +17,72 @@ class CoverageCalculator:
         return self.engine.xp
     
     def calculate_single_antenna_coverage(
-        self, 
+        self,
         antenna: Antenna,
         grid_lats: np.ndarray,
         grid_lons: np.ndarray,
         terrain_heights: np.ndarray,
-        model
+        model,
+        model_params: dict = None
     ) -> np.ndarray:
         """
         Calcula cobertura para una antena
-        
+
+        Args:
+            antenna: Objeto Antenna
+            grid_lats: Array 2D con latitudes del grid
+            grid_lons: Array 2D con longitudes del grid
+            terrain_heights: Array 2D con elevaciones del terreno
+            model: Modelo de propagación
+            model_params: Parámetros adicionales para el modelo
+
         Returns:
             Array 2D con RSRP en dBm para cada punto del grid
         """
         self.logger.info(f"Calculating coverage for {antenna.name}")
-        
+
+        # Valores por defecto para model_params
+        if model_params is None:
+            model_params = {}
+
         # Convertir a GPU si está disponible
         if self.engine.use_gpu:
             grid_lats = self.xp.asarray(grid_lats)
             grid_lons = self.xp.asarray(grid_lons)
             terrain_heights = self.xp.asarray(terrain_heights)
-        
+
         # Calcular distancias
         distances = self._calculate_distances(
             antenna.latitude, antenna.longitude,
             grid_lats, grid_lons
         )
-        
+
+        # Preparar parámetros para model.calculate_path_loss
+        path_loss_args = {
+            'distances': distances,
+            'frequency': antenna.frequency_mhz,
+            'tx_height': antenna.height_agl,
+            'terrain_heights': terrain_heights
+        }
+
+        # Agregar parámetros adicionales del modelo
+        path_loss_args.update(model_params)
+
         # Calcular path loss usando modelo
-        path_loss = model.calculate_path_loss(
-            distances=distances,
-            frequency=antenna.frequency_mhz,
-            tx_height=antenna.height_agl,
-            terrain_heights=terrain_heights
-        )
-        
+        path_loss = model.calculate_path_loss(**path_loss_args)
+
         # Aplicar patrón de antena
         antenna_gain = self._apply_antenna_pattern(
             antenna, grid_lats, grid_lons
         )
-        
+
         # RSRP = Tx Power + Antenna Gain - Path Loss
         rsrp = antenna.tx_power_dbm + antenna_gain - path_loss
-        
+
         # Convertir de vuelta a CPU si es necesario
         if self.engine.use_gpu:
             rsrp = self.xp.asnumpy(rsrp)
-        
+
         return rsrp
     
     def calculate_multi_antenna_coverage(
@@ -72,11 +91,20 @@ class CoverageCalculator:
         grid_lats: np.ndarray,
         grid_lons: np.ndarray,
         terrain_heights: np.ndarray,
-        model
+        model,
+        model_params: dict = None
     ) -> Dict[str, np.ndarray]:
         """
         Calcula cobertura para múltiples antenas
-        
+
+        Args:
+            antennas: Lista de antenas
+            grid_lats: Array 2D con latitudes del grid
+            grid_lons: Array 2D con longitudes del grid
+            terrain_heights: Array 2D con elevaciones del terreno
+            model: Modelo de propagación
+            model_params: Parámetros adicionales para el modelo
+
         Returns:
             Dict con:
             - 'best_server': ID de antena con mejor señal en cada punto
@@ -84,31 +112,31 @@ class CoverageCalculator:
             - 'individual': Dict con cobertura de cada antena
         """
         self.logger.info(f"Calculating coverage for {len(antennas)} antennas")
-        
+
         results = {'individual': {}}
-        
+
         # Calcular cobertura individual
         for antenna in antennas:
             if antenna.enabled and antenna.show_coverage:
                 coverage = self.calculate_single_antenna_coverage(
-                    antenna, grid_lats, grid_lons, terrain_heights, model
+                    antenna, grid_lats, grid_lons, terrain_heights, model, model_params
                 )
                 results['individual'][antenna.id] = coverage
-        
+
         # Calcular best server (máximo RSRP en cada píxel)
         if results['individual']:
             coverage_stack = np.stack(list(results['individual'].values()))
             antenna_ids = list(results['individual'].keys())
-            
+
             best_indices = np.argmax(coverage_stack, axis=0)
             results['rsrp'] = np.max(coverage_stack, axis=0)
-            
+
             # Crear mapa de best server
             results['best_server'] = np.empty(best_indices.shape, dtype=object)
             for i, ant_id in enumerate(antenna_ids):
                 mask = best_indices == i
                 results['best_server'][mask] = ant_id
-        
+
         return results
     
     def _calculate_distances(self, ant_lat, ant_lon, grid_lats, grid_lons):
@@ -169,80 +197,97 @@ class CoverageCalculator:
         center_lon: float,
         radius_km: float = 5.0,
         resolution: int = 100,
-        model=None
+        model=None,
+        model_params: dict = None,
+        terrain_loader=None
     ):
         """
         Cálculo rápido de cobertura en área cuadrada
-        
+
         Args:
             antenna: Objeto Antenna
             center_lat, center_lon: Centro del área (normalmente la antena)
             radius_km: Radio en km desde el centro
             resolution: Puntos por lado del grid (100x100 = 10,000 puntos)
             model: Modelo de propagación a usar
-        
+            model_params: Parámetros adicionales para el modelo (environment, city_type, etc.)
+            terrain_loader: TerrainLoader para obtener elevaciones (opcional)
+
         Returns:
             dict con 'lats', 'lons', 'rsrp' (arrays numpy)
         """
         self.logger.info(f"Quick coverage calculation for {antenna.name}")
-        
+
+        # Valores por defecto para model_params
+        if model_params is None:
+            model_params = {}
+
         # Convertir km a grados (aproximado)
         # 1 grado ≈ 111 km
         delta_deg = radius_km / 111.0
-        
+
         # Crear grid
         lat_min = center_lat - delta_deg
         lat_max = center_lat + delta_deg
         lon_min = center_lon - delta_deg
         lon_max = center_lon + delta_deg
-        
+
         lats = np.linspace(lat_min, lat_max, resolution)
         lons = np.linspace(lon_min, lon_max, resolution)
-        
+
         grid_lats, grid_lons = np.meshgrid(lats, lons)
-        
+
+        # Obtener elevaciones del terreno
+        if terrain_loader and terrain_loader.is_loaded():
+            self.logger.debug("Loading terrain elevations for grid...")
+            terrain_heights = terrain_loader.get_elevations_fast(grid_lats, grid_lons)
+        else:
+            terrain_heights = np.zeros_like(grid_lats)
+
         # Transferir a GPU si disponible
         if self.engine.use_gpu:
             self.logger.debug("Using GPU for calculation")
             grid_lats_gpu = self.xp.asarray(grid_lats)
             grid_lons_gpu = self.xp.asarray(grid_lons)
+            terrain_heights_gpu = self.xp.asarray(terrain_heights)
         else:
             grid_lats_gpu = grid_lats
             grid_lons_gpu = grid_lons
-        
+            terrain_heights_gpu = terrain_heights
+
         # Calcular distancias
         distances = self._calculate_distances(
             antenna.latitude, antenna.longitude,
             grid_lats_gpu, grid_lons_gpu
         )
-        
-        # Path loss
-        # TODO: Cargar datos de terreno reales desde archivos DEM/DTED
-        # Por ahora usa terreno plano (altura 0) que es suficiente para
-        # modelos empíricos como Okumura-Hata que no requieren perfil detallado
-        terrain_heights = self.xp.zeros_like(distances)
-        
-        path_loss = model.calculate_path_loss(
-            distances=distances,
-            frequency=antenna.frequency_mhz,
-            tx_height=antenna.height_agl,
-            terrain_heights=terrain_heights
-        )
-        
+
+        # Preparar parámetros para model.calculate_path_loss
+        path_loss_args = {
+            'distances': distances,
+            'frequency': antenna.frequency_mhz,
+            'tx_height': antenna.height_agl,
+            'terrain_heights': terrain_heights_gpu
+        }
+
+        # Agregar parámetros adicionales del modelo (Okumura-Hata)
+        path_loss_args.update(model_params)
+
+        path_loss = model.calculate_path_loss(**path_loss_args)
+
         # Aplicar patrón de antena
         antenna_gain = self._apply_antenna_pattern(
             antenna, grid_lats_gpu, grid_lons_gpu
         )
-        
+
         # RSRP = Tx Power + Antenna Gain - Path Loss
         rsrp = antenna.tx_power_dbm + antenna_gain - path_loss
-        
+
         # Convertir de vuelta a CPU
         if self.engine.use_gpu:
             rsrp = self.xp.asnumpy(rsrp)
             grid_lats = self.xp.asnumpy(grid_lats_gpu)
             grid_lons = self.xp.asnumpy(grid_lons_gpu)
-        
+
         return {
             'lats': grid_lats,
             'lons': grid_lons,

@@ -2,28 +2,48 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 import logging
 from typing import List, Dict
+from pathlib import Path
 from models.antenna import Antenna
 from core.models.traditional.free_space import FreeSpacePathLossModel
+from core.terrain_loader import TerrainLoader
 from utils.heatmap_generator import HeatmapGenerator
 
 class SimulationWorker(QObject):
     """Worker que ejecuta simulaciones en thread separado"""
-    
+
     # Señales
     progress = pyqtSignal(int)
     status_message = pyqtSignal(str)
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
-    
+
     def __init__(self, antennas: List[Antenna], coverage_calculator,
                  terrain_data, config: Dict):
         super().__init__()
         self.antennas = antennas
         self.calculator = coverage_calculator
-        self.terrain_data = terrain_data
         self.config = config
         self.should_stop = False
         self.logger = logging.getLogger("SimulationWorker")
+
+        # Cargar TerrainLoader
+        self.terrain_loader = None
+        if terrain_data is not None:
+            self.terrain_loader = terrain_data
+        else:
+            # Intentar cargar archivo de terreno por defecto
+            terrain_file = Path('data/terrain/cuenca_terrain.tif')
+            if terrain_file.exists():
+                self.logger.info("Loading default terrain file...")
+                self.terrain_loader = TerrainLoader(str(terrain_file))
+                if self.terrain_loader.is_loaded():
+                    stats = self.terrain_loader.get_stats()
+                    self.logger.info(f"Terrain loaded: elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
+                else:
+                    self.terrain_loader = None
+            else:
+                self.logger.warning("No terrain file found, using flat terrain (elevation = 0)")
+                self.terrain_loader = None
     
     def run(self):
         """Ejecuta la simulación"""
@@ -50,14 +70,33 @@ class SimulationWorker(QObject):
                 # Cálculo rápido centrado en la antena
                 radius_km = self.config.get('radius_km', 5.0)
                 resolution = self.config.get('resolution', 100)
-                
+
+                # Parámetros adicionales para Okumura-Hata
+                model_params = {}
+                if self.config.get('model') == 'okumura_hata':
+                    model_params['environment'] = self.config.get('environment', 'Urban')
+                    model_params['city_type'] = self.config.get('city_type', 'medium')
+                    model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
+
+                    # Obtener tx_elevation del terreno
+                    if self.terrain_loader and self.terrain_loader.is_loaded():
+                        tx_elevation = self.terrain_loader.get_elevation(
+                            antenna.latitude, antenna.longitude
+                        )
+                        model_params['tx_elevation'] = tx_elevation
+                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
+                    else:
+                        model_params['tx_elevation'] = 0.0
+
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,
                     center_lat=antenna.latitude,
                     center_lon=antenna.longitude,
                     radius_km=radius_km,
                     resolution=resolution,
-                    model=model
+                    model=model,
+                    model_params=model_params,
+                    terrain_loader=self.terrain_loader  # Pasar terrain_loader
                 )
                 
                 # Generar imagen de heatmap
@@ -112,35 +151,45 @@ class SimulationWorker(QObject):
         grid_lons = np.linspace(min_lon, max_lon, resolution)
         
         grid_lats, grid_lons = np.meshgrid(grid_lats, grid_lons)
-        
+
         # Cargar alturas de terreno
-        if self.terrain_data is not None:
-            terrain_heights = self._interpolate_terrain(grid_lats, grid_lons)
+        if self.terrain_loader and self.terrain_loader.is_loaded():
+            self.logger.info("Interpolating terrain elevations for grid...")
+            terrain_heights = self.terrain_loader.get_elevations_fast(grid_lats, grid_lons)
+            self.logger.info(f"  Grid elevation range: {terrain_heights.min():.0f} - {terrain_heights.max():.0f}m")
         else:
+            self.logger.warning("Using flat terrain (no elevation data)")
             terrain_heights = np.zeros_like(grid_lats)
-        
+
         return grid_lats, grid_lons, terrain_heights
     
     def _get_propagation_model(self):
         """Obtiene el modelo de propagación configurado"""
         model_name = self.config.get('model', 'free_space')
-        
+
         self.logger.info(f"Using propagation model: {model_name}")
-        
+
         if model_name == 'free_space':
             from core.models.traditional.free_space import FreeSpacePathLossModel
             return FreeSpacePathLossModel(compute_module=self.calculator.xp)
-        
+
         elif model_name == 'okumura_hata':
             from core.models.traditional.okumura_hata import OkumuraHataModel
-            return OkumuraHataModel(compute_module=self.calculator.xp)
-        
+
+            # Extraer parámetros de Okumura-Hata desde config
+            okumura_config = {}
+            if 'environment' in self.config:
+                okumura_config['environment'] = self.config['environment']
+            if 'city_type' in self.config:
+                okumura_config['city_type'] = self.config['city_type']
+            if 'mobile_height' in self.config:
+                okumura_config['mobile_height'] = self.config['mobile_height']
+
+            self.logger.info(f"Okumura-Hata config: {okumura_config}")
+
+            return OkumuraHataModel(config=okumura_config, compute_module=self.calculator.xp)
+
         # Default: Free Space
         self.logger.warning(f"Unknown model '{model_name}', using Free Space")
         from core.models.traditional.free_space import FreeSpacePathLossModel
         return FreeSpacePathLossModel(compute_module=self.calculator.xp)
-    
-    def _interpolate_terrain(self, grid_lats, grid_lons):
-        """Interpola alturas de terreno para el grid"""
-        # TODO: Implementar interpolación real
-        return np.zeros_like(grid_lats)
