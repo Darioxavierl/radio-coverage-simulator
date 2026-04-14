@@ -48,6 +48,7 @@ class SimulationDialog(QDialog):
         self.model_combo = QComboBox()
         self.model_combo.addItem("Free Space Path Loss", "free_space")
         self.model_combo.addItem("Okumura-Hata", "okumura_hata")
+        self.model_combo.addItem("COST-231 Walfisch-Ikegami", "cost231")
         self.model_combo.setCurrentIndex(0)  # Free Space por defecto
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         model_layout.addRow("Modelo:", self.model_combo)
@@ -101,6 +102,48 @@ class SimulationDialog(QDialog):
         self.okumura_params_group.setLayout(okumura_layout)
         self.okumura_params_group.setVisible(False)  # Oculto por defecto
         layout.addWidget(self.okumura_params_group)
+
+        # Grupo de parámetros de COST-231 (solo visible cuando se selecciona)
+        self.cost231_params_group = QGroupBox("Parámetros de COST-231 Walfisch-Ikegami")
+        cost231_layout = QFormLayout()
+
+        # Altura de edificios
+        self.building_height_spin = QDoubleSpinBox()
+        self.building_height_spin.setRange(5.0, 40.0)
+        self.building_height_spin.setValue(15.0)
+        self.building_height_spin.setSingleStep(1.0)
+        self.building_height_spin.setSuffix(" m")
+        self.building_height_spin.setToolTip("Altura típica de edificios en el área (para Cuenca: ~15m)")
+        cost231_layout.addRow("Altura edificios:", self.building_height_spin)
+
+        # Ancho de calle
+        self.street_width_spin = QDoubleSpinBox()
+        self.street_width_spin.setRange(5.0, 50.0)
+        self.street_width_spin.setValue(12.0)
+        self.street_width_spin.setSingleStep(1.0)
+        self.street_width_spin.setSuffix(" m")
+        self.street_width_spin.setToolTip("Ancho típico de calles (para Cuenca: ~12m)")
+        cost231_layout.addRow("Ancho calle:", self.street_width_spin)
+
+        # Orientación de calle
+        self.street_orientation_spin = QDoubleSpinBox()
+        self.street_orientation_spin.setRange(0.0, 90.0)
+        self.street_orientation_spin.setValue(0.0)
+        self.street_orientation_spin.setSingleStep(5.0)
+        self.street_orientation_spin.setSuffix(" °")
+        self.street_orientation_spin.setToolTip("Orientación de calle respecto a TX-RX (0°=alineada, 90°=perpendicular)")
+        cost231_layout.addRow("Orientación calle:", self.street_orientation_spin)
+
+        # Nota informativa
+        cost231_note = QLabel("<small><i>Modelo para urban canyon. Considera difracción rooftop-to-street. "
+                             "Frecuencias 800-2000 MHz, distancias 20m-5km.</i></small>")
+        cost231_note.setWordWrap(True)
+        cost231_note.setStyleSheet("color: #666; margin-top: 5px;")
+        cost231_layout.addRow("", cost231_note)
+
+        self.cost231_params_group.setLayout(cost231_layout)
+        self.cost231_params_group.setVisible(False)  # Oculto por defecto
+        layout.addWidget(self.cost231_params_group)
 
         # Grupo de parámetros de simulación
         params_group = QGroupBox("Parámetros de Simulación")
@@ -176,9 +219,10 @@ class SimulationDialog(QDialog):
         """Actualiza la descripción cuando cambia el modelo"""
         self._update_model_description()
 
-        # Mostrar/ocultar parámetros de Okumura-Hata
+        # Mostrar/ocultar parámetros según el modelo seleccionado
         model_key = self.model_combo.currentData()
         self.okumura_params_group.setVisible(model_key == 'okumura_hata')
+        self.cost231_params_group.setVisible(model_key == 'cost231')
 
         # Ajustar tamaño del diálogo
         self.adjustSize()
@@ -201,7 +245,11 @@ class SimulationDialog(QDialog):
                          'Apropiado para enlaces punto a punto con línea de vista directa.',
             'okumura_hata': 'Modelo empírico para sistemas móviles celulares. '
                            'Válido para frecuencias 150-2000 MHz y distancias 1-20 km. '
-                           'Considera altura de antena, tipo de ambiente y elevación del terreno.'
+                           'Considera altura de antena, tipo de ambiente y elevación del terreno.',
+            'cost231': 'Modelo semi-determinístico para urban canyon. '
+                      'Análisis de difracción Walfisch-Ikegami. '
+                      'Válido para frecuencias 800-2000 MHz, distancias 20m-5km. '
+                      'Considera altura de edificios, ancho de calles y orientación.'
         }
 
         self.model_description.setText(descriptions.get(model_key, ''))
@@ -219,5 +267,11 @@ class SimulationDialog(QDialog):
             config['environment'] = self.environment_combo.currentData()
             config['city_type'] = self.city_type_combo.currentData()
             config['mobile_height'] = self.mobile_height_spin.value()
+
+        # Agregar parámetros de COST-231 si está seleccionado
+        if self.model_combo.currentData() == 'cost231':
+            config['building_height'] = self.building_height_spin.value()
+            config['street_width'] = self.street_width_spin.value()
+            config['street_orientation'] = self.street_orientation_spin.value()
 
         return config

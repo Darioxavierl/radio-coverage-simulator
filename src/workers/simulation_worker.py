@@ -88,6 +88,22 @@ class SimulationWorker(QObject):
                     else:
                         model_params['tx_elevation'] = 0.0
 
+                # Parámetros adicionales para COST-231
+                if self.config.get('model') == 'cost231':
+                    model_params['building_height'] = self.config.get('building_height', 15.0)
+                    model_params['street_width'] = self.config.get('street_width', 12.0)
+                    model_params['street_orientation'] = self.config.get('street_orientation', 0.0)
+
+                    # Obtener tx_elevation del terreno
+                    if self.terrain_loader and self.terrain_loader.is_loaded():
+                        tx_elevation = self.terrain_loader.get_elevation(
+                            antenna.latitude, antenna.longitude
+                        )
+                        model_params['tx_elevation'] = tx_elevation
+                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
+                    else:
+                        model_params['tx_elevation'] = 0.0
+
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,
                     center_lat=antenna.latitude,
@@ -188,6 +204,30 @@ class SimulationWorker(QObject):
             self.logger.info(f"Okumura-Hata config: {okumura_config}")
 
             return OkumuraHataModel(config=okumura_config, compute_module=self.calculator.xp)
+
+        elif model_name == 'cost231':
+            from core.models.traditional.cost231 import COST231WalfischIkegamiModel
+
+            # Extraer parámetros de COST-231 desde config
+            cost231_config = {}
+            if 'building_height' in self.config:
+                cost231_config['building_height'] = self.config['building_height']
+            else:
+                cost231_config['building_height'] = 15.0
+
+            if 'street_width' in self.config:
+                cost231_config['street_width'] = self.config['street_width']
+            else:
+                cost231_config['street_width'] = 12.0
+
+            if 'street_orientation' in self.config:
+                cost231_config['street_orientation'] = self.config['street_orientation']
+            else:
+                cost231_config['street_orientation'] = 0.0
+
+            self.logger.info(f"COST-231 config: {cost231_config}")
+
+            return COST231WalfischIkegamiModel(config=cost231_config, compute_module=self.calculator.xp)
 
         # Default: Free Space
         self.logger.warning(f"Unknown model '{model_name}', using Free Space")

@@ -19,6 +19,8 @@ from test_gpu_functionality import TestGPUFunctionality, TestCPUGPUConsistency
 from test_project_system import (TestProject as TestProjectSystem, 
                                   TestSiteSerialization, TestProjectManager)
 from test_simulation_dialog import TestSimulationDialog, TestPropagationModelSelection
+from test_cost231_complete import *
+from test_cost231_integration import *
 
 
 def run_all_tests():
