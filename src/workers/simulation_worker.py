@@ -104,6 +104,21 @@ class SimulationWorker(QObject):
                     else:
                         model_params['tx_elevation'] = 0.0
 
+                # Parámetros adicionales para ITU-R P.1546
+                if self.config.get('model') == 'itu_p1546':
+                    model_params['environment'] = self.config.get('environment', 'Urban')
+                    model_params['terrain_type'] = self.config.get('terrain_type', 'mixed')
+
+                    # Obtener tx_elevation del terreno
+                    if self.terrain_loader and self.terrain_loader.is_loaded():
+                        tx_elevation = self.terrain_loader.get_elevation(
+                            antenna.latitude, antenna.longitude
+                        )
+                        model_params['tx_elevation'] = tx_elevation
+                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
+                    else:
+                        model_params['tx_elevation'] = 0.0
+
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,
                     center_lat=antenna.latitude,
@@ -228,6 +243,25 @@ class SimulationWorker(QObject):
             self.logger.info(f"COST-231 config: {cost231_config}")
 
             return COST231WalfischIkegamiModel(config=cost231_config, compute_module=self.calculator.xp)
+
+        elif model_name == 'itu_p1546':
+            from core.models.traditional.itu_r_p1546 import ITUR_P1546Model
+
+            # Extraer parámetros de ITU-R P.1546 desde config
+            itu_config = {}
+            if 'environment' in self.config:
+                itu_config['environment'] = self.config['environment']
+            else:
+                itu_config['environment'] = 'Urban'
+
+            if 'terrain_type' in self.config:
+                itu_config['terrain_type'] = self.config['terrain_type']
+            else:
+                itu_config['terrain_type'] = 'mixed'
+
+            self.logger.info(f"ITU-R P.1546 config: {itu_config}")
+
+            return ITUR_P1546Model(config=itu_config, compute_module=self.calculator.xp)
 
         # Default: Free Space
         self.logger.warning(f"Unknown model '{model_name}', using Free Space")

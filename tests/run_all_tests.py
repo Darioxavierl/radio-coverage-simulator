@@ -11,16 +11,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 # Importar tests
 from test_gpu_detector import TestGPUDetector
 from test_compute_engine import TestComputeEngine
-from test_propagation_models import (TestFreeSpaceModel, TestOkumuraHataModel, 
+from test_propagation_models import (TestFreeSpaceModel, TestOkumuraHataModel,
                                       TestModelConsistency)
 from test_coverage_calculator import TestCoverageCalculator, TestCoverageCalculatorGPU
 from test_models import TestAntenna, TestSite, TestProject
 from test_gpu_functionality import TestGPUFunctionality, TestCPUGPUConsistency
-from test_project_system import (TestProject as TestProjectSystem, 
+from test_project_system import (TestProject as TestProjectSystem,
                                   TestSiteSerialization, TestProjectManager)
 from test_simulation_dialog import TestSimulationDialog, TestPropagationModelSelection
 from test_cost231_complete import *
 from test_cost231_integration import *
+from test_itu_r_p1546_complete import *
+from test_itu_r_p1546_integration import *
 
 
 def run_all_tests():
@@ -63,7 +65,15 @@ def run_all_tests():
     # Tests específicos de GPU (se omiten si GPU no disponible)
     suite.addTests(loader.loadTestsFromTestCase(TestGPUFunctionality))
     suite.addTests(loader.loadTestsFromTestCase(TestCPUGPUConsistency))
-    
+
+    # Tests de COST-231 (completo + integración)
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_cost231_complete']))
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_cost231_integration']))
+
+    # Tests de ITU-R P.1546 (completo + integración)
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_itu_r_p1546_complete']))
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_itu_r_p1546_integration']))
+
     # Ejecutar
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

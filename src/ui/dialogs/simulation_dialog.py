@@ -49,6 +49,7 @@ class SimulationDialog(QDialog):
         self.model_combo.addItem("Free Space Path Loss", "free_space")
         self.model_combo.addItem("Okumura-Hata", "okumura_hata")
         self.model_combo.addItem("COST-231 Walfisch-Ikegami", "cost231")
+        self.model_combo.addItem("ITU-R P.1546", "itu_p1546")
         self.model_combo.setCurrentIndex(0)  # Free Space por defecto
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         model_layout.addRow("Modelo:", self.model_combo)
@@ -145,6 +146,38 @@ class SimulationDialog(QDialog):
         self.cost231_params_group.setVisible(False)  # Oculto por defecto
         layout.addWidget(self.cost231_params_group)
 
+        # Grupo de parámetros de ITU-R P.1546 (solo visible cuando se selecciona)
+        self.itu_p1546_params_group = QGroupBox("Parámetros de ITU-R P.1546")
+        itu_p1546_layout = QFormLayout()
+
+        # Tipo de ambiente
+        self.itu_p1546_environment_combo = QComboBox()
+        self.itu_p1546_environment_combo.addItem("Urbano (Urban)", "Urban")
+        self.itu_p1546_environment_combo.addItem("Suburbano (Suburban)", "Suburban")
+        self.itu_p1546_environment_combo.addItem("Rural (Open Area)", "Rural")
+        self.itu_p1546_environment_combo.setCurrentIndex(0)
+        itu_p1546_layout.addRow("Ambiente:", self.itu_p1546_environment_combo)
+
+        # Tipo de terreno
+        self.itu_p1546_terrain_combo = QComboBox()
+        self.itu_p1546_terrain_combo.addItem("Suave (Smooth)", "smooth")
+        self.itu_p1546_terrain_combo.addItem("Mixto (Mixed)", "mixed")
+        self.itu_p1546_terrain_combo.addItem("Irregular (Irregular)", "irregular")
+        self.itu_p1546_terrain_combo.setCurrentIndex(1)
+        itu_p1546_layout.addRow("Terreno:", self.itu_p1546_terrain_combo)
+
+        # Nota informativa
+        itu_p1546_note = QLabel("<small><i>Modelo point-to-area para cobertura. "
+                                "Frecuencias 30-4000 MHz, distancias 1-1000 km. "
+                                "LOS/NLOS determinado automáticamente por radio horizon.</i></small>")
+        itu_p1546_note.setWordWrap(True)
+        itu_p1546_note.setStyleSheet("color: #666; margin-top: 5px;")
+        itu_p1546_layout.addRow("", itu_p1546_note)
+
+        self.itu_p1546_params_group.setLayout(itu_p1546_layout)
+        self.itu_p1546_params_group.setVisible(False)  # Oculto por defecto
+        layout.addWidget(self.itu_p1546_params_group)
+
         # Grupo de parámetros de simulación
         params_group = QGroupBox("Parámetros de Simulación")
         params_layout = QFormLayout()
@@ -223,6 +256,7 @@ class SimulationDialog(QDialog):
         model_key = self.model_combo.currentData()
         self.okumura_params_group.setVisible(model_key == 'okumura_hata')
         self.cost231_params_group.setVisible(model_key == 'cost231')
+        self.itu_p1546_params_group.setVisible(model_key == 'itu_p1546')
 
         # Ajustar tamaño del diálogo
         self.adjustSize()
@@ -249,7 +283,10 @@ class SimulationDialog(QDialog):
             'cost231': 'Modelo semi-determinístico para urban canyon. '
                       'Análisis de difracción Walfisch-Ikegami. '
                       'Válido para frecuencias 800-2000 MHz, distancias 20m-5km. '
-                      'Considera altura de edificios, ancho de calles y orientación.'
+                      'Considera altura de edificios, ancho de calles y orientación.',
+            'itu_p1546': 'Modelo point-to-area empírico ITU-R. '
+                        'Válido para frecuencias 30-4000 MHz y distancias 1-1000 km. '
+                        'LOS/NLOS determinado automáticamente. Aplicable a radiodifusión, móviles y punto fijo.'
         }
 
         self.model_description.setText(descriptions.get(model_key, ''))
@@ -273,5 +310,10 @@ class SimulationDialog(QDialog):
             config['building_height'] = self.building_height_spin.value()
             config['street_width'] = self.street_width_spin.value()
             config['street_orientation'] = self.street_orientation_spin.value()
+
+        # Agregar parámetros de ITU-R P.1546 si está seleccionado
+        if self.model_combo.currentData() == 'itu_p1546':
+            config['environment'] = self.itu_p1546_environment_combo.currentData()
+            config['terrain_type'] = self.itu_p1546_terrain_combo.currentData()
 
         return config
