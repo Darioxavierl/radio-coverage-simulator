@@ -23,6 +23,8 @@ from test_cost231_complete import *
 from test_cost231_integration import *
 from test_itu_r_p1546_complete import *
 from test_itu_r_p1546_integration import *
+from test_3gpp_38901_complete import *
+from test_3gpp_38901_integration import *
 
 
 def run_all_tests():
@@ -73,6 +75,10 @@ def run_all_tests():
     # Tests de ITU-R P.1546 (completo + integración)
     suite.addTests(loader.loadTestsFromModule(sys.modules['test_itu_r_p1546_complete']))
     suite.addTests(loader.loadTestsFromModule(sys.modules['test_itu_r_p1546_integration']))
+
+    # Tests de 3GPP TR 38.901 (completo + integración)
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_3gpp_38901_complete']))
+    suite.addTests(loader.loadTestsFromModule(sys.modules['test_3gpp_38901_integration']))
 
     # Ejecutar
     runner = unittest.TextTestRunner(verbosity=2)

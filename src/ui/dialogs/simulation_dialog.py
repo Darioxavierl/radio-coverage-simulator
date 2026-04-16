@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QPushButton,
                              QComboBox, QSpinBox, QFormLayout, QGroupBox,
-                             QHBoxLayout, QDoubleSpinBox)
+                             QHBoxLayout, QDoubleSpinBox, QCheckBox)
 from PyQt6.QtCore import Qt
 from pathlib import Path
 
@@ -50,6 +50,7 @@ class SimulationDialog(QDialog):
         self.model_combo.addItem("Okumura-Hata", "okumura_hata")
         self.model_combo.addItem("COST-231 Walfisch-Ikegami", "cost231")
         self.model_combo.addItem("ITU-R P.1546", "itu_p1546")
+        self.model_combo.addItem("3GPP TR 38.901", "three_gpp_38901")
         self.model_combo.setCurrentIndex(0)  # Free Space por defecto
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         model_layout.addRow("Modelo:", self.model_combo)
@@ -178,7 +179,53 @@ class SimulationDialog(QDialog):
         self.itu_p1546_params_group.setVisible(False)  # Oculto por defecto
         layout.addWidget(self.itu_p1546_params_group)
 
-        # Grupo de parámetros de simulación
+        # Grupo de parámetros de 3GPP TR 38.901 (solo visible cuando se selecciona)
+        self.three_gpp_params_group = QGroupBox("Parámetros de 3GPP TR 38.901")
+        three_gpp_layout = QFormLayout()
+
+        # Escenario (UMa, UMi, RMa)
+        self.three_gpp_scenario_combo = QComboBox()
+        self.three_gpp_scenario_combo.addItem("Urbano Macro (UMa)", "UMa")
+        self.three_gpp_scenario_combo.addItem("Urbano Micro (UMi)", "UMi")
+        self.three_gpp_scenario_combo.addItem("Rural Macro (RMa)", "RMa")
+        self.three_gpp_scenario_combo.setCurrentIndex(0)
+        three_gpp_layout.addRow("Escenario:", self.three_gpp_scenario_combo)
+
+        # Altura de Base Station
+        self.three_gpp_bs_height_spin = QDoubleSpinBox()
+        self.three_gpp_bs_height_spin.setRange(5.0, 60.0)
+        self.three_gpp_bs_height_spin.setValue(25.0)
+        self.three_gpp_bs_height_spin.setSingleStep(1.0)
+        self.three_gpp_bs_height_spin.setSuffix(" m")
+        self.three_gpp_bs_height_spin.setToolTip("Altura de la estación base (típicamente 25m para UMa, 10m para UMi)")
+        three_gpp_layout.addRow("Altura BS:", self.three_gpp_bs_height_spin)
+
+        # Altura de User Equipment
+        self.three_gpp_ue_height_spin = QDoubleSpinBox()
+        self.three_gpp_ue_height_spin.setRange(1.0, 3.0)
+        self.three_gpp_ue_height_spin.setValue(1.5)
+        self.three_gpp_ue_height_spin.setSingleStep(0.1)
+        self.three_gpp_ue_height_spin.setSuffix(" m")
+        self.three_gpp_ue_height_spin.setToolTip("Altura del terminal móvil (típicamente 1.5m)")
+        three_gpp_layout.addRow("Altura UE:", self.three_gpp_ue_height_spin)
+
+        # Modo determinista con terreno
+        self.three_gpp_dem_checkbox = QCheckBox("Usar DEM (Modo Determinista)")
+        self.three_gpp_dem_checkbox.setChecked(False)
+        self.three_gpp_dem_checkbox.setToolTip("Integrar datos de elevación del terreno para correcciones de difracción (más realista pero más lento)")
+        three_gpp_layout.addRow(self.three_gpp_dem_checkbox)
+
+        # Nota informativa
+        three_gpp_note = QLabel("<small><i>Modelo 5G point-to-area con LOS/NLOS probabilístico. "
+                                "Frecuencias 0.5-100 GHz, distancias 10m-10km. "
+                                "Diseñado para bandas n78 (3.5GHz), n257 (28GHz) y n258 (73GHz).</i></small>")
+        three_gpp_note.setWordWrap(True)
+        three_gpp_note.setStyleSheet("color: #666; margin-top: 5px;")
+        three_gpp_layout.addRow("", three_gpp_note)
+
+        self.three_gpp_params_group.setLayout(three_gpp_layout)
+        self.three_gpp_params_group.setVisible(False)  # Oculto por defecto
+        layout.addWidget(self.three_gpp_params_group)
         params_group = QGroupBox("Parámetros de Simulación")
         params_layout = QFormLayout()
 
@@ -257,6 +304,7 @@ class SimulationDialog(QDialog):
         self.okumura_params_group.setVisible(model_key == 'okumura_hata')
         self.cost231_params_group.setVisible(model_key == 'cost231')
         self.itu_p1546_params_group.setVisible(model_key == 'itu_p1546')
+        self.three_gpp_params_group.setVisible(model_key == 'three_gpp_38901')
 
         # Ajustar tamaño del diálogo
         self.adjustSize()
@@ -286,7 +334,10 @@ class SimulationDialog(QDialog):
                       'Considera altura de edificios, ancho de calles y orientación.',
             'itu_p1546': 'Modelo point-to-area empírico ITU-R. '
                         'Válido para frecuencias 30-4000 MHz y distancias 1-1000 km. '
-                        'LOS/NLOS determinado automáticamente. Aplicable a radiodifusión, móviles y punto fijo.'
+                        'LOS/NLOS determinado automáticamente. Aplicable a radiodifusión, móviles y punto fijo.',
+            'three_gpp_38901': 'Modelo 5G de 3GPP TR 38.901 con LOS/NLOS probabilístico. '
+                              'Válido para frecuencias 0.5-100 GHz y distancias 10m-10km. '
+                              'Soporta escenarios UMa, UMi y RMa. Optimizado para bandas n78, n257, n258.'
         }
 
         self.model_description.setText(descriptions.get(model_key, ''))
@@ -315,5 +366,12 @@ class SimulationDialog(QDialog):
         if self.model_combo.currentData() == 'itu_p1546':
             config['environment'] = self.itu_p1546_environment_combo.currentData()
             config['terrain_type'] = self.itu_p1546_terrain_combo.currentData()
+
+        # Agregar parámetros de 3GPP TR 38.901 si está seleccionado
+        if self.model_combo.currentData() == 'three_gpp_38901':
+            config['scenario'] = self.three_gpp_scenario_combo.currentData()
+            config['h_bs'] = self.three_gpp_bs_height_spin.value()
+            config['h_ue'] = self.three_gpp_ue_height_spin.value()
+            config['use_dem'] = self.three_gpp_dem_checkbox.isChecked()
 
         return config

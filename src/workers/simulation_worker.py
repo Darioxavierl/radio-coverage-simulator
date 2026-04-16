@@ -119,6 +119,17 @@ class SimulationWorker(QObject):
                     else:
                         model_params['tx_elevation'] = 0.0
 
+                # Parámetros adicionales para 3GPP TR 38.901
+                if self.config.get('model') == 'three_gpp_38901':
+                    model_params['scenario'] = self.config.get('scenario', 'UMa')
+                    model_params['h_bs'] = self.config.get('h_bs', 25.0)
+                    model_params['h_ue'] = self.config.get('h_ue', 1.5)
+                    model_params['use_dem'] = self.config.get('use_dem', False)
+
+                    self.logger.debug(f"3GPP config: scenario={model_params['scenario']}, "
+                                    f"h_bs={model_params['h_bs']}m, h_ue={model_params['h_ue']}m, "
+                                    f"use_dem={model_params['use_dem']}")
+
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,
                     center_lat=antenna.latitude,
@@ -262,6 +273,38 @@ class SimulationWorker(QObject):
             self.logger.info(f"ITU-R P.1546 config: {itu_config}")
 
             return ITUR_P1546Model(config=itu_config, compute_module=self.calculator.xp)
+
+        elif model_name == 'three_gpp_38901':
+            from core.models.gpp_3gpp.three_gpp_38901 import ThreGPP38901Model
+
+            # Extraer parámetros de 3GPP TR 38.901 desde config
+            three_gpp_config = {}
+            if 'scenario' in self.config:
+                three_gpp_config['scenario'] = self.config['scenario']
+            else:
+                three_gpp_config['scenario'] = 'UMa'
+
+            if 'h_bs' in self.config:
+                three_gpp_config['h_bs'] = self.config['h_bs']
+            else:
+                # Default según escenario
+                scenario = three_gpp_config['scenario']
+                defaults = {'UMa': 25, 'UMi': 10, 'RMa': 35}
+                three_gpp_config['h_bs'] = defaults.get(scenario, 25)
+
+            if 'h_ue' in self.config:
+                three_gpp_config['h_ue'] = self.config['h_ue']
+            else:
+                three_gpp_config['h_ue'] = 1.5
+
+            if 'use_dem' in self.config:
+                three_gpp_config['use_dem'] = self.config['use_dem']
+            else:
+                three_gpp_config['use_dem'] = False
+
+            self.logger.info(f"3GPP TR 38.901 config: {three_gpp_config}")
+
+            return ThreGPP38901Model(config=three_gpp_config, numpy_module=self.calculator.xp)
 
         # Default: Free Space
         self.logger.warning(f"Unknown model '{model_name}', using Free Space")
