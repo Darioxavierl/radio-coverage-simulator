@@ -66,21 +66,13 @@ class SettingsDialog(QDialog):
         self.use_gpu_check = QCheckBox()
         self.use_gpu_check.setEnabled(self.compute_engine.gpu_detector.cupy_available)
         gpu_layout.addRow("Usar GPU:", self.use_gpu_check)
-        
+
         # GPU Info
         gpu_info = self.compute_engine.gpu_detector.get_device_info_string()
         gpu_info_label = QLabel(gpu_info)
         gpu_info_label.setWordWrap(True)
         gpu_layout.addRow("Dispositivo:", gpu_info_label)
-        
-        # Auto detect
-        self.auto_detect_check = QCheckBox()
-        gpu_layout.addRow("Auto-detectar:", self.auto_detect_check)
-        
-        # Fallback to CPU
-        self.fallback_check = QCheckBox()
-        gpu_layout.addRow("Fallback a CPU:", self.fallback_check)
-        
+
         gpu_group.setLayout(gpu_layout)
         layout.addWidget(gpu_group)
         
@@ -136,7 +128,7 @@ class SettingsDialog(QDialog):
         paths_layout.addRow("Datos de terreno:", terrain_label)
         
         exports_label = QLabel(self.config.settings['paths'].get('exports', 'N/A'))
-        exports_layout.setWordWrap(True)
+        exports_label.setWordWrap(True)
         paths_layout.addRow("Exportaciones:", exports_label)
         
         logs_label = QLabel(self.config.settings['paths'].get('logs', 'N/A'))
@@ -156,9 +148,7 @@ class SettingsDialog(QDialog):
         
         # Compute
         self.use_gpu_check.setChecked(compute_settings.get('use_gpu', True))
-        self.auto_detect_check.setChecked(compute_settings.get('auto_detect', True))
-        self.fallback_check.setChecked(compute_settings.get('fallback_to_cpu', True))
-        
+
         # UI
         theme = ui_settings.get('theme', 'dark')
         index = self.theme_combo.findText(theme)
@@ -176,13 +166,11 @@ class SettingsDialog(QDialog):
         """Retorna la configuración actualizada"""
         # Actualizar settings
         self.config.settings['compute']['use_gpu'] = self.use_gpu_check.isChecked()
-        self.config.settings['compute']['auto_detect'] = self.auto_detect_check.isChecked()
-        self.config.settings['compute']['fallback_to_cpu'] = self.fallback_check.isChecked()
-        
+
         self.config.settings['ui']['theme'] = self.theme_combo.currentText()
         self.config.settings['application']['language'] = self.language_combo.currentText()
         self.config.settings['ui']['map_default_zoom'] = self.zoom_spin.value()
-        
+
         return self.config.settings
     
     def accept(self):

@@ -44,13 +44,16 @@ class MainWindow(QMainWindow):
         # Compute engine
         use_gpu = self.config.settings['compute'].get('use_gpu', True)
         self.compute_engine = ComputeEngine(use_gpu=use_gpu)
-        
+
+        # Connect GPU/CPU mode change signal
+        self.compute_engine.gpu_mode_changed.connect(self._on_compute_mode_changed)
+
         # Managers
         self.antenna_manager = AntennaManager()
         self.site_manager = SiteManager()
         self.project_manager = ProjectManager()
         self.coverage_calculator = CoverageCalculator(self.compute_engine)
-        
+
         self.logger.info("Managers initialized")
     
     def _setup_ui(self):
@@ -176,8 +179,7 @@ class MainWindow(QMainWindow):
         
         # Menú View
         view_menu = menubar.addMenu("&Vista")
-        
-        # Se agregarán automáticamente las acciones de los dock widgets
+        view_menu.addAction(self.project_dock.toggleViewAction())
         
         # Menú Help
         help_menu = menubar.addMenu("A&yuda")
@@ -205,9 +207,17 @@ class MainWindow(QMainWindow):
         save_action = QAction("Guardar", self)
         save_action.triggered.connect(self.save_project)
         main_toolbar.addAction(save_action)
-        
+
         main_toolbar.addSeparator()
-        
+
+        # Settings button
+        settings_action = QAction("Configuración", self)
+        settings_action.triggered.connect(self.show_settings)
+        settings_action.setToolTip("Abrir configuración (GPU/CPU, UI, rutas)")
+        main_toolbar.addAction(settings_action)
+
+        main_toolbar.addSeparator()
+
         # Toolbar del mapa
         map_toolbar = QToolBar("Herramientas de Mapa")
         map_toolbar.setMovable(False)
@@ -257,49 +267,28 @@ class MainWindow(QMainWindow):
         # Panel de proyecto (izquierda)
         from src.ui.panels.project_panel import ProjectPanel
         self.project_panel = ProjectPanel(self.antenna_manager, self.site_manager)
-        project_dock = QDockWidget("Proyecto", self)
-        project_dock.setWidget(self.project_panel)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, project_dock)
-        
-        # Panel de capas (izquierda, abajo)
-        from src.ui.panels.layers_panel import LayersPanel
-        self.layers_panel = LayersPanel()
-        layers_dock = QDockWidget("Capas", self)
-        layers_dock.setWidget(self.layers_panel)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, layers_dock)
-        
-        # Panel de propiedades (derecha)
-        from src.ui.panels.properties_panel import PropertiesPanel
-        self.properties_panel = PropertiesPanel()
-        properties_dock = QDockWidget("Propiedades", self)
-        properties_dock.setWidget(self.properties_panel)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, properties_dock)
-        
-        # Panel de análisis (derecha, abajo)
-        from src.ui.panels.analysis_panel import AnalysisPanel
-        self.analysis_panel = AnalysisPanel()
-        analysis_dock = QDockWidget("Análisis", self)
-        analysis_dock.setWidget(self.analysis_panel)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, analysis_dock)
+        self.project_dock = QDockWidget("Proyecto", self)
+        self.project_dock.setWidget(self.project_panel)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
     
     def _create_status_bar(self):
         """Crea la barra de estado"""
         status_bar = QStatusBar()
         self.setStatusBar(status_bar)
-        
+
         # Mensaje permanente
         self.status_label = QLabel("Listo")
         status_bar.addWidget(self.status_label)
-        
-        # Info del sistema
+
+        # Info del sistema (GPU/CPU mode - actualizable)
         compute_mode = "GPU" if self.compute_engine.use_gpu else "CPU"
-        gpu_label = QLabel(f"Compute: {compute_mode}")
-        status_bar.addPermanentWidget(gpu_label)
-        
+        self.compute_mode_label = QLabel(f"Aceleración: {compute_mode}")
+        status_bar.addPermanentWidget(self.compute_mode_label)
+
         # Coordenadas del cursor
         self.coords_label = QLabel("Lat: 0.000000, Lon: 0.000000")
         status_bar.addPermanentWidget(self.coords_label)
-        
+
         # Barra de progreso (oculta por defecto)
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximumWidth(200)
@@ -350,7 +339,15 @@ class MainWindow(QMainWindow):
         
         self._update_window_title()
         self.logger.info("Default project created")
-    
+
+    @pyqtSlot(bool)
+    def _on_compute_mode_changed(self, use_gpu: bool):
+        """Updates UI when GPU/CPU mode changes"""
+        mode = "GPU" if use_gpu else "CPU"
+        self.compute_mode_label.setText(f"Aceleración: {mode}")
+        self.status_label.setText(f"Modo de cómputo cambiado a {mode}")
+        self.logger.info(f"Compute mode updated: {mode}")
+
     # ===== Slots para manejo de antenas =====
     
     def start_add_antenna_mode(self):
@@ -364,8 +361,6 @@ class MainWindow(QMainWindow):
         self.antenna_manager.select_antenna(antenna_id)
         antenna = self.antenna_manager.get_antenna(antenna_id)
         if antenna:
-            # Mostrar propiedades en el panel
-            self.properties_panel.show_antenna_properties(antenna)
             # Centrar mapa en la antena
             self.map_widget.center_on_location(antenna.latitude, antenna.longitude, 16)
             self.status_label.setText(f"Antena seleccionada: {antenna.name}")
@@ -413,7 +408,6 @@ class MainWindow(QMainWindow):
         """Callback cuando se selecciona una antena"""
         antenna = self.antenna_manager.get_antenna(antenna_id)
         if antenna:
-            self.properties_panel.show_antenna_properties(antenna)
             self.status_label.setText(f"Antena seleccionada: {antenna.name}")
     
     def on_antenna_added(self, antenna_id: str):
@@ -698,10 +692,7 @@ class MainWindow(QMainWindow):
         # Mostrar resultados en el mapa
         for antenna_id, coverage in results['individual'].items():
             self.map_widget.show_coverage(antenna_id, coverage)
-        
-        # Actualizar panel de análisis
-        self.analysis_panel.update_results(results)
-        
+
         # Limpiar thread
         self.simulation_thread.quit()
         self.simulation_thread.wait()
