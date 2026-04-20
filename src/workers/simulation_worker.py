@@ -47,26 +47,38 @@ class SimulationWorker(QObject):
     
     def run(self):
         """Ejecuta la simulación"""
+        import time
+        from datetime import datetime
+
         try:
-            self.logger.info(f"Starting simulation for {len(self.antennas)} antennas")
+            # NUEVO: Capturar timestamp inicial y modo GPU
+            sim_start = time.perf_counter()
+            gpu_used = self.calculator.engine.use_gpu
+            gpu_device = self.calculator.engine.gpu_detector.get_device_info_string() if gpu_used else "CPU Only"
+
+            self.logger.info(f"Starting simulation for {len(self.antennas)} antennas on {'GPU' if gpu_used else 'CPU'}")
             self.status_message.emit("Preparando simulación...")
             self.progress.emit(10)
-            
+
             # Modelo de propagación - usar el seleccionado en config
             model = self._get_propagation_model()
-            
+
             self.status_message.emit("Calculando cobertura...")
             self.progress.emit(30)
-            
+
             results = {'individual': {}}
-            
+            antenna_times = {}  # NUEVO: Rastrear tiempos por antena
+
             # Calcular para cada antena
             for i, antenna in enumerate(self.antennas):
                 if self.should_stop:
                     return
-                
+
+                # NUEVO: Capturar tiempo de inicio de antena
+                antenna_start = time.perf_counter()
+
                 self.status_message.emit(f"Calculando antena {i+1}/{len(self.antennas)}...")
-                
+
                 # Cálculo rápido centrado en la antena
                 radius_km = self.config.get('radius_km', 5.0)
                 resolution = self.config.get('resolution', 100)
@@ -140,10 +152,10 @@ class SimulationWorker(QObject):
                     model_params=model_params,
                     terrain_loader=self.terrain_loader  # Pasar terrain_loader
                 )
-                
+
                 # Generar imagen de heatmap
                 heatmap_gen = HeatmapGenerator()
-                
+
                 image_url = heatmap_gen.generate_heatmap_image(
                     coverage['rsrp'],
                     colormap='jet',
@@ -151,23 +163,51 @@ class SimulationWorker(QObject):
                     vmax=-60,
                     alpha=0.6
                 )
-                
+
                 # Agregar bounds e image_url
                 coverage['image_url'] = image_url
                 coverage['bounds'] = [
                     [coverage['lats'].min(), coverage['lons'].min()],
                     [coverage['lats'].max(), coverage['lons'].max()]
                 ]
-                
+
                 results['individual'][antenna.id] = coverage
-                
+
+                # NUEVO: Capturar tiempo de antena
+                antenna_time = time.perf_counter() - antenna_start
+                antenna_times[antenna.id] = round(antenna_time, 3)
+                self.logger.debug(f"Antenna {antenna.name} calculated in {antenna_time:.3f}s")
+
                 progress = 30 + int((i + 1) / len(self.antennas) * 60)
                 self.progress.emit(progress)
-            
+
+            # NUEVO: Capturar duración total y agregar metadata
+            total_time = time.perf_counter() - sim_start
+
+            results['metadata'] = {
+                'timestamp': datetime.now().isoformat(),
+                'gpu_used': gpu_used,
+                'gpu_device': gpu_device,
+                'total_execution_time_seconds': round(total_time, 2),
+                'antenna_times_seconds': antenna_times,
+                'num_antennas': len(self.antennas),
+                'grid_parameters': {
+                    'radius_km': self.config.get('radius_km', 5.0),
+                    'resolution': self.config.get('resolution', 100),
+                    'total_grid_points': (self.config.get('resolution', 100)) ** 2
+                },
+                'model_used': self.config.get('model', 'unknown'),
+                'model_parameters': {
+                    k: v for k, v in self.config.items()
+                    if k in ['environment', 'city_type', 'scenario', 'h_bs', 'h_ue',
+                            'building_height', 'street_width', 'terrain_type']
+                }
+            }
+
             self.progress.emit(100)
-            self.logger.info("Simulation completed")
+            self.logger.info(f"Simulation completed in {total_time:.2f}s")
             self.finished.emit(results)
-            
+
         except Exception as e:
             self.logger.error(f"Simulation error: {e}", exc_info=True)
             self.error.emit(str(e))

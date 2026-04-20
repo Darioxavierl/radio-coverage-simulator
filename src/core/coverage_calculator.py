@@ -287,10 +287,14 @@ class CoverageCalculator:
             rsrp = self.xp.asnumpy(rsrp)
             grid_lats = self.xp.asnumpy(grid_lats_gpu)
             grid_lons = self.xp.asnumpy(grid_lons_gpu)
+            path_loss = self.xp.asnumpy(path_loss)
+            antenna_gain = self.xp.asnumpy(antenna_gain)
 
         return {
             'lats': grid_lats,
             'lons': grid_lons,
             'rsrp': rsrp,
+            'path_loss': path_loss,
+            'antenna_gain': antenna_gain,
             'antenna_id': antenna.id
         }

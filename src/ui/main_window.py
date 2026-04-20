@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QFileDialog, QProgressBar, QLabel)
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QActionGroup
+from datetime import datetime
+import json
 from src.ui.widgets.map_widget import MapMode, MapWidget
 from src.core.compute_engine import ComputeEngine
 from src.core.antenna_manager import AntennaManager
@@ -119,11 +121,15 @@ class MainWindow(QMainWindow):
         export_kml_action = QAction("KML", self)
         export_kml_action.triggered.connect(lambda: self.export_results('kml'))
         export_menu.addAction(export_kml_action)
-        
+
         export_geotiff_action = QAction("GeoTIFF", self)
         export_geotiff_action.triggered.connect(lambda: self.export_results('geotiff'))
         export_menu.addAction(export_geotiff_action)
-        
+
+        export_csv_action = QAction("CSV + JSON", self)
+        export_csv_action.triggered.connect(lambda: self.export_results('csv'))
+        export_menu.addAction(export_csv_action)
+
         file_menu.addSeparator()
         
         exit_action = QAction("&Salir", self)
@@ -685,10 +691,15 @@ class MainWindow(QMainWindow):
     def on_simulation_finished(self, results: dict):
         """Callback cuando termina la simulación"""
         self.logger.info("Simulation completed")
+
+        # NUEVO: Guardar resultados para exportación
+        self.last_simulation_results = results
+        self.last_simulation_timestamp = datetime.now()
+
         self.simulation_running = False
         self.progress_bar.setVisible(False)
         self.status_label.setText("Simulación completada")
-        
+
         # Mostrar resultados en el mapa
         for antenna_id, coverage in results['individual'].items():
             self.map_widget.show_coverage(antenna_id, coverage)
@@ -746,32 +757,60 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el terreno:\n{e}")
     
     def export_results(self, format_type: str):
-        """Exporta resultados de simulación"""
+        """Exporta resultados de simulación en múltiples formatos"""
         if not hasattr(self, 'last_simulation_results'):
             QMessageBox.warning(self, "Advertencia", "No hay resultados para exportar")
             return
-        
-        filename, _ = QFileDialog.getSaveFileName(
-            self, f"Exportar como {format_type.upper()}", "data/exports",
-            f"{format_type.upper()} Files (*.{format_type})"
-        )
-        
-        if filename:
-            try:
-                from src.utils.export_manager import ExportManager
-                exporter = ExportManager()
-                
-                if format_type == 'kml':
-                    exporter.export_kml(self.last_simulation_results, filename)
-                elif format_type == 'geotiff':
-                    exporter.export_geotiff(self.last_simulation_results, filename)
-                
-                self.logger.info(f"Results exported to: {filename}")
-                self.status_label.setText(f"Resultados exportados a {format_type.upper()}")
-                
-            except Exception as e:
-                self.logger.error(f"Export error: {e}")
-                QMessageBox.critical(self, "Error", f"Error al exportar:\n{e}")
+
+        results = self.last_simulation_results
+        timestamp = getattr(self, 'last_simulation_timestamp', datetime.now())
+        base_name = f"simulacion_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+
+        try:
+            from src.utils.export_manager import ExportManager
+            exporter = ExportManager()
+
+            if format_type == 'csv':
+                # Dialog para guardar CSV
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Exportar como CSV", f"data/exports/{base_name}.csv",
+                    "CSV Files (*.csv)"
+                )
+                if filename:
+                    exporter.export_csv(results, filename.replace('.csv', ''))
+                    exporter.export_metadata_json(results, filename.replace('.csv', ''))
+                    self.status_label.setText("Resultados exportados a CSV + JSON")
+                    self.logger.info(f"Export complete: {filename}")
+                    QMessageBox.information(self, "Exportación completada",
+                                          f"Archivos creados:\n{filename}\n{filename.replace('.csv', '_metadata.json')}")
+
+            elif format_type == 'geotiff':
+                # Dialog para guardar GeoTIFF
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Exportar como GeoTIFF", f"data/exports/{base_name}.tif",
+                    "GeoTIFF Files (*.tif)"
+                )
+                if filename:
+                    exporter.export_geotiff(results, filename)
+                    self.status_label.setText("Resultados exportados a GeoTIFF")
+                    self.logger.info(f"Export complete: {filename}")
+                    QMessageBox.information(self, "Exportación completada", f"Archivo: {filename}")
+
+            elif format_type == 'kml':
+                # Dialog para guardar KML
+                filename, _ = QFileDialog.getSaveFileName(
+                    self, "Exportar como KML", f"data/exports/{base_name}.kml",
+                    "KML Files (*.kml)"
+                )
+                if filename:
+                    exporter.export_kml(results, filename)
+                    self.status_label.setText("Resultados exportados a KML")
+                    self.logger.info(f"Export complete: {filename}")
+                    QMessageBox.information(self, "Exportación completada", f"Archivo: {filename}")
+
+        except Exception as e:
+            self.logger.error(f"Export error: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Error al exportar:\n{e}")
     
     def set_map_mode(self, mode):
         """Cambia el modo del mapa"""
