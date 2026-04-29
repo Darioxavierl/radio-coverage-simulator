@@ -21,14 +21,15 @@ class MainWindow(QMainWindow):
         self.config = config_manager
         self.gpu = gpu_detector
         self.logger = logging.getLogger("MainWindow")
-        
+
         # Managers
         self.project_manager = None
         self.antenna_manager = None
         self.site_manager = None
         self.coverage_calculator = None
         self.compute_engine = None
-        
+        self.terrain_loader = None  # PHASE 4: Terrain loader para simulaciones
+
         # Estado
         self.current_project = None
         self.simulation_running = False
@@ -330,6 +331,27 @@ class MainWindow(QMainWindow):
         self.map_widget.center_on_location(
             default_center[0], default_center[1], default_zoom
         )
+
+        # PHASE 4: Cargar terreno por defecto si existe
+        from pathlib import Path
+        from src.core.terrain_loader import TerrainLoader
+
+        terrain_file = Path('data/terrain/cuenca_terrain.tif')
+        if terrain_file.exists():
+            try:
+                self.terrain_loader = TerrainLoader(str(terrain_file))
+                if self.terrain_loader.is_loaded():
+                    stats = self.terrain_loader.get_stats()
+                    self.logger.info(f"Default terrain loaded: elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
+                else:
+                    self.terrain_loader = None
+                    self.logger.warning("Terrain file exists but failed to load")
+            except Exception as e:
+                self.logger.warning(f"Failed to load default terrain: {e}")
+                self.terrain_loader = None
+        else:
+            self.logger.debug("No default terrain file found at data/terrain/cuenca_terrain.tif")
+            self.terrain_loader = None
     
     def _create_default_project(self):
         """Crea un proyecto por defecto al iniciar la aplicación"""
@@ -666,7 +688,7 @@ class MainWindow(QMainWindow):
             self.simulation_worker = SimulationWorker(
                 antennas=antennas,
                 coverage_calculator=self.coverage_calculator,
-                terrain_data=None,  # TODO: cargar terrain
+                terrain_data=self.terrain_loader,  # PHASE 4: Pasar terrain_loader en lugar de None
                 config=dialog.get_config()
             )
             
@@ -738,20 +760,26 @@ class MainWindow(QMainWindow):
             self, "Importar Terreno", "data/terrain",
             "Terrain Files (*.dt1 *.dt2 *.dem *.tif *.hgt)"
         )
-        
+
         if filename:
             try:
                 from src.core.terrain_loader import TerrainLoader
-                terrain_loader = TerrainLoader()
-                terrain_data = terrain_loader.load(filename)
-                
-                self.logger.info(f"Terrain loaded: {filename}")
-                self.status_label.setText("Terreno cargado exitosamente")
-                
+                terrain_loader = TerrainLoader(filename)  # PHASE 4: Pasar filename al constructor
+
+                if terrain_loader.is_loaded():
+                    self.terrain_loader = terrain_loader  # Guardar para simulaciones futuras
+                    stats = terrain_loader.get_stats()
+                    self.logger.info(f"Terrain loaded: {filename}, elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
+                    self.status_label.setText("Terreno cargado exitosamente")
+                else:
+                    self.logger.error("Terrain file loaded but validation failed")
+                    self.status_label.setText("Error: El archivo de terreno no es válido")
+                    return
+
                 # Guardar referencia en proyecto
                 if self.current_project:
                     self.current_project.terrain_file = filename
-                
+
             except Exception as e:
                 self.logger.error(f"Error loading terrain: {e}")
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el terreno:\n{e}")

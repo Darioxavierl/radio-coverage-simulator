@@ -99,10 +99,11 @@ class TestThreGPP38901BasicCalculation(unittest.TestCase):
         print("[OK] Shape preserved")
 
     def test_path_loss_increases_with_distance(self):
-        """Test: Path loss aumenta monotónicamente con distancia"""
+        """Test: Path loss aumenta monótonicamente con distancia"""
         print("Test: Path loss increases with distance...")
         model = ThreGPP38901Model()
-        distances = np.array([0.1, 0.5, 1.0, 2.0, 5.0])
+        # After PHASE 2 refactor: distances always in METERS
+        distances = np.array([100.0, 500.0, 1000.0, 2000.0, 5000.0])  # in meters
         pl = model.calculate_path_loss(distances, 28000)
         diffs = np.diff(pl)
         self.assertTrue(np.all(diffs > 0), "Path loss should increase with distance")
@@ -127,7 +128,8 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         """Test: Frecuencia 30 MHz (sub-rango mínimo)"""
         print("Test: Minimum frequency (30 MHz)...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 30)
+        # After PHASE 2 refactor: distances always in METERS
+        pl = model.calculate_path_loss(np.array([1000.0]), 30)  # 1000 meters (1 km)
         self.assertGreater(pl[0], 0)
         print("[OK] 30 MHz accepted")
 
@@ -281,9 +283,11 @@ class TestThreGPP38901Scenarios(unittest.TestCase):
         """Test: Altura UE afecta path loss NLOS"""
         print("Test: UE height affects path loss...")
         model = ThreGPP38901Model({'scenario': 'UMa'})
-        distances = np.array([1.0])
-        pl_1_5m = model.calculate_path_loss(distances, 28000, rx_height=1.5)
-        pl_3_0m = model.calculate_path_loss(distances, 28000, rx_height=3.0)
+        # After PHASE 2 refactor: distances always in METERS
+        distances = np.array([1000.0])  # 1000 meters (1 km)
+        # After PHASE 1 refactor: h_ue must be passed in kwargs (has priority over rx_height)
+        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)
+        pl_3_0m = model.calculate_path_loss(distances, 28000, h_ue=3.0)
         # Taller UE should have less path loss (negative correction)
         self.assertLess(pl_3_0m[0], pl_1_5m[0])
         print(f"[OK] Height effect: 1.5m={pl_1_5m[0]:.1f}, 3.0m={pl_3_0m[0]:.1f} dB")
@@ -331,8 +335,11 @@ class TestThreGPP38901EdgeCases(unittest.TestCase):
         """Test: Grid grande (10,000+ puntos)"""
         print("Test: Large grid calculation (10k points)...")
         model = ThreGPP38901Model()
-        distances = np.random.rand(100, 100)  # 10,000 points
-        pl = model.calculate_path_loss(distances, 28000)
+        # After PHASE 2 refactor: distances always in METERS
+        distances = np.random.rand(100, 100) * 5000 + 100  # 10,000 points, 100-5100 meters
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            pl = model.calculate_path_loss(distances, 28000)
         self.assertEqual(pl.shape, (100, 100))
         self.assertTrue(np.all(pl > 0))
         print("[OK] Large grid computed")
@@ -368,8 +375,9 @@ class TestThreGPP38901Consistency(unittest.TestCase):
         """Test: UMa reference value (f=28GHz, d=100m) with probabilistic blending"""
         print("Test: UMa reference value...")
         model = ThreGPP38901Model({'scenario': 'UMa'})
-        pl = model.calculate_path_loss(np.array([0.1]), 28000)  # 0.1 km = 100m
-        # At 100m (0.1km): path loss ~113-114 dB with probabilistic blending at 28 GHz
+        # After PHASE 2 refactor: distances always in METERS
+        pl = model.calculate_path_loss(np.array([100.0]), 28000)  # 100 meters
+        # At 100m: path loss ~113-114 dB with probabilistic blending at 28 GHz
         self.assertGreater(pl[0], 110)
         self.assertLess(pl[0], 120)
         print(f"[OK] UMa 100m: {pl[0]:.1f} dB")
@@ -378,8 +386,9 @@ class TestThreGPP38901Consistency(unittest.TestCase):
         """Test: UMi reference value (f=28GHz, d=100m) with probabilistic blending"""
         print("Test: UMi reference value...")
         model = ThreGPP38901Model({'scenario': 'UMi'})
-        pl = model.calculate_path_loss(np.array([0.1]), 28000)  # 0.1 km = 100m
-        # At 100m (0.1km): path loss ~122-123 dB with probabilistic blending at 28 GHz
+        # After PHASE 2 refactor: distances always in METERS
+        pl = model.calculate_path_loss(np.array([100.0]), 28000)  # 100 meters
+        # At 100m: path loss ~122-123 dB with probabilistic blending at 28 GHz
         self.assertGreater(pl[0], 120)
         self.assertLess(pl[0], 130)
         print(f"[OK] UMi 100m: {pl[0]:.1f} dB")

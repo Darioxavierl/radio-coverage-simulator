@@ -26,23 +26,30 @@ class SimulationWorker(QObject):
         self.should_stop = False
         self.logger = logging.getLogger("SimulationWorker")
 
-        # Cargar TerrainLoader
+        # PHASE 4: Cargar TerrainLoader
         self.terrain_loader = None
-        if terrain_data is not None:
+        if terrain_data is not None and terrain_data.is_loaded():
             self.terrain_loader = terrain_data
+            stats = self.terrain_loader.get_stats()
+            self.logger.info(f"Using terrain from GUI: elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
         else:
             # Intentar cargar archivo de terreno por defecto
             terrain_file = Path('data/terrain/cuenca_terrain.tif')
             if terrain_file.exists():
-                self.logger.info("Loading default terrain file...")
-                self.terrain_loader = TerrainLoader(str(terrain_file))
-                if self.terrain_loader.is_loaded():
-                    stats = self.terrain_loader.get_stats()
-                    self.logger.info(f"Terrain loaded: elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
-                else:
+                try:
+                    self.logger.info("Loading default terrain file...")
+                    self.terrain_loader = TerrainLoader(str(terrain_file))
+                    if self.terrain_loader.is_loaded():
+                        stats = self.terrain_loader.get_stats()
+                        self.logger.info(f"Default terrain loaded: elevation range {stats['min']:.0f}-{stats['max']:.0f}m")
+                    else:
+                        self.logger.warning("Default terrain file validation failed")
+                        self.terrain_loader = None
+                except Exception as e:
+                    self.logger.warning(f"Failed to load default terrain: {e}")
                     self.terrain_loader = None
             else:
-                self.logger.warning("No terrain file found, using flat terrain (elevation = 0)")
+                self.logger.warning("No terrain file found at data/terrain/cuenca_terrain.tif, using flat terrain")
                 self.terrain_loader = None
     
     def run(self):
@@ -82,6 +89,11 @@ class SimulationWorker(QObject):
                 # Cálculo rápido centrado en la antena
                 radius_km = self.config.get('radius_km', 5.0)
                 resolution = self.config.get('resolution', 100)
+
+                # PHASE 3: Agregar frequency override si está configurado
+                frequency_override_mhz = self.config.get('frequency_override_mhz', None)
+                if frequency_override_mhz and frequency_override_mhz > 0:
+                    self.logger.debug(f"Using frequency override: {frequency_override_mhz} MHz")
 
                 # Parámetros adicionales para Okumura-Hata
                 model_params = {}
@@ -141,6 +153,10 @@ class SimulationWorker(QObject):
                     self.logger.debug(f"3GPP config: scenario={model_params['scenario']}, "
                                     f"h_bs={model_params['h_bs']}m, h_ue={model_params['h_ue']}m, "
                                     f"use_dem={model_params['use_dem']}")
+
+                # PHASE 3: Agregar frequency override a model_params si existe
+                if frequency_override_mhz and frequency_override_mhz > 0:
+                    model_params['frequency_override_mhz'] = frequency_override_mhz
 
                 coverage = self.calculator.calculate_single_antenna_quick(
                     antenna=antenna,

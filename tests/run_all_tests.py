@@ -25,6 +25,8 @@ from test_itu_r_p1546_complete import *
 from test_itu_r_p1546_integration import *
 from test_3gpp_38901_complete import *
 from test_3gpp_38901_integration import *
+from test_3gpp_config_heights import TestThreGPP38901ConfigHeights  # PHASE 5: Validar h_bs/h_ue
+from test_units_consistency import TestUnitsConsistency  # PHASE 5: Validar unidades
 
 
 def run_all_tests():
@@ -79,6 +81,10 @@ def run_all_tests():
     # Tests de 3GPP TR 38.901 (completo + integración)
     suite.addTests(loader.loadTestsFromModule(sys.modules['test_3gpp_38901_complete']))
     suite.addTests(loader.loadTestsFromModule(sys.modules['test_3gpp_38901_integration']))
+
+    # PHASE 5: Tests de validación - h_bs/h_ue y unidades
+    suite.addTests(loader.loadTestsFromTestCase(TestThreGPP38901ConfigHeights))
+    suite.addTests(loader.loadTestsFromTestCase(TestUnitsConsistency))
 
     # Ejecutar
     runner = unittest.TextTestRunner(verbosity=2)

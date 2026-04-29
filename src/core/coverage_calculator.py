@@ -262,9 +262,12 @@ class CoverageCalculator:
         )
 
         # Preparar parámetros para model.calculate_path_loss
+        # PHASE 3: Aplicar frequency override si está disponible
+        frequency_to_use = model_params.get('frequency_override_mhz', None) or antenna.frequency_mhz
+
         path_loss_args = {
             'distances': distances,
-            'frequency': antenna.frequency_mhz,
+            'frequency': frequency_to_use,
             'tx_height': antenna.height_agl,
             'terrain_heights': terrain_heights_gpu
         }

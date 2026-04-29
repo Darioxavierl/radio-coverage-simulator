@@ -244,6 +244,16 @@ class SimulationDialog(QDialog):
         self.resolution_spin.setSuffix(" puntos")
         params_layout.addRow("Resolución:", self.resolution_spin)
 
+        # Frecuencia (override opcional) - PHASE 3
+        self.frequency_spin = QDoubleSpinBox()
+        self.frequency_spin.setRange(0, 100000)
+        self.frequency_spin.setValue(0)  # 0 = usar frecuencia de la antena
+        self.frequency_spin.setSuffix(" MHz (0 = usar antena)")
+        self.frequency_spin.setDecimals(0)
+        self.frequency_spin.setSingleStep(100)
+        self.frequency_spin.setToolTip("Override de frecuencia para la simulación. 0 = usar frecuencia de la antena configurada")
+        params_layout.addRow("Frecuencia Override:", self.frequency_spin)
+
         params_group.setLayout(params_layout)
         layout.addWidget(params_group)
 
@@ -347,7 +357,8 @@ class SimulationDialog(QDialog):
         config = {
             'model': self.model_combo.currentData(),
             'radius_km': self.radius_spin.value(),
-            'resolution': self.resolution_spin.value()
+            'resolution': self.resolution_spin.value(),
+            'frequency_override_mhz': self.frequency_spin.value() if self.frequency_spin.value() > 0 else None
         }
 
         # Agregar parámetros de Okumura-Hata si está seleccionado

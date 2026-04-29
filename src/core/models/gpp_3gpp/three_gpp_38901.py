@@ -155,10 +155,11 @@ class ThreGPP38901Model:
         Calculate path loss using 3GPP TR 38.901 model.
 
         Args:
-            distances (np.ndarray): Distance matrix in meters (from CoverageCalculator)
+            distances (np.ndarray): Distance matrix in METERS (calculated by Haversine from CoverageCalculator)
+                                   NO unit detection heuristic - always assume METERS
             frequency (float): Frequency in MHz
-            tx_height (float): Transmitter height in meters (overrides config)
-            rx_height (float): Receiver height in meters (overrides config)
+            tx_height (float): Transmitter height in meters (only used if h_bs not configured)
+            rx_height (float): Receiver height in meters (only used if h_ue not configured)
             terrain_heights (np.ndarray): Terrain elevation data (for deterministic mode)
             **kwargs: Additional parameters (for consistency with other models)
 
@@ -167,10 +168,32 @@ class ThreGPP38901Model:
 
         Raises:
             ValueError: If inputs are outside valid ranges
+
+        Note:
+            - h_bs and h_ue from initialization config have priority over tx_height/rx_height parameters
+            - These configured values represent scenario-specific base station and user equipment heights
+            - tx_height/rx_height parameters are only used as fallback if h_bs/h_ue are None
+            - Distances are ALWAYS expected in METERS (from CoverageCalculator via Haversine)
+            - Valid distance range: 10 m - 10 km (10 to 10,000 meters) depending on scenario
         """
-        # Use provided heights or defaults
-        h_bs = tx_height if tx_height is not None else self.h_bs
-        h_ue = rx_height if rx_height is not None else self.h_ue
+        # Use configured heights (from config) with priority over parameters
+        # Priority order:
+        # 1. h_bs/h_ue passed in kwargs (from model_params via CoverageCalculator)
+        # 2. self.h_bs/self.h_ue (from initialization config)
+        # 3. tx_height/rx_height parameters (fallback for direct usage)
+        if 'h_bs' in kwargs:
+            h_bs = kwargs['h_bs']
+        elif self.h_bs is not None:
+            h_bs = self.h_bs
+        else:
+            h_bs = tx_height
+
+        if 'h_ue' in kwargs:
+            h_ue = kwargs['h_ue']
+        elif self.h_ue is not None:
+            h_ue = self.h_ue
+        else:
+            h_ue = rx_height
 
         # Convert frequency MHz -> GHz
         f_ghz = frequency / 1000.0
@@ -185,19 +208,16 @@ class ThreGPP38901Model:
         # Convert distances to numpy array if needed
         distances = self.xp.asarray(distances)
 
-        # Convert distances from meters to kilometers (CoverageCalculator provides meters)
-        # Heuristic: if max distance > 100, assume it's in meters (from CoverageCalculator)
-        # Otherwise assume it's already in km (from manual tests/scripts)
-        if self.xp.max(distances) > 100:  # Likely in meters from CoverageCalculator
-            distances_km = distances / 1000.0
-        else:  # Already in kilometers (from standalone/test usage)
-            distances_km = distances
+        # Convert distances from meters to kilometers
+        # IMPORTANT: CoverageCalculator ALWAYS provides distances in METERS via Haversine
+        # No heuristic detection - distances are ALWAYS expected in meters
+        distances_km = distances / 1000.0
+        distances_m = distances  # Already in meters from source
 
-        # Validate distance range (check in kilometers)
+        # Validate distance range (check in meters)
         scenario_params = self.SCENARIOS[self.scenario]
         d_min_m, d_max_m = scenario_params['distance_range']
 
-        distances_m = distances_km * 1000.0
         max_dist_m = self.xp.max(distances_m)
         if max_dist_m > d_max_m:
             warnings.warn(

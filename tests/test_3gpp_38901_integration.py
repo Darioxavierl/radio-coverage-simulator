@@ -59,10 +59,12 @@ class TestThreGPP38901ParameterPassing(unittest.TestCase):
         """Test: Parámetros de altura se aplican correctamente"""
         print("Test: Height parameters...")
         model = ThreGPP38901Model({'scenario': 'UMa', 'h_bs': 25})
-        distances = np.array([1.0])
+        # After PHASE 2 refactor: distances always in METERS
+        distances = np.array([1000.0])  # 1000 meters (1 km)
 
-        pl_1_5m = model.calculate_path_loss(distances, 28000, rx_height=1.5)
-        pl_2_0m = model.calculate_path_loss(distances, 28000, rx_height=2.0)
+        # After PHASE 1 refactor: h_ue must be passed in kwargs (has priority over rx_height)
+        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)
+        pl_2_0m = model.calculate_path_loss(distances, 28000, h_ue=2.0)
 
         # Different heights should produce different results
         self.assertNotAlmostEqual(pl_1_5m[0], pl_2_0m[0])
@@ -100,7 +102,8 @@ class TestThreGPP38901OutputConsistency(unittest.TestCase):
         """Test: Valores físicamente plausibles"""
         print("Test: Physical plausibility...")
         model = ThreGPP38901Model({'scenario': 'UMa'})
-        distances = np.array([0.01, 0.1, 1.0, 10.0])  # 10m to 10km
+        # After PHASE 2 refactor: distances always in METERS
+        distances = np.array([10.0, 100.0, 1000.0, 10000.0])  # 10m to 10km
         result = model.calculate_path_loss(distances, 28000)
 
         # Check ranges are reasonable for 28 GHz
