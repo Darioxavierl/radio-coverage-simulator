@@ -82,11 +82,13 @@ class MapWidget(QWidget):
         
         # WebView para Leaflet
         self.web_view = QWebEngineView()
+        profile = self.web_view.page().profile()
+        profile.setHttpUserAgent("RadioCoverageSimulator/1.0 (PyQt6 QWebEngineView)")
         layout.addWidget(self.web_view)
         
         # Cargar HTML del mapa
         map_html = self._load_map_html()
-        self.web_view.setHtml(map_html)
+        self.web_view.setHtml(map_html, QUrl("http://localhost"))
     
     def _setup_bridge(self):
         """Configura el puente Python-JavaScript"""
