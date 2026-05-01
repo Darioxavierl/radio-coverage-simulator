@@ -722,14 +722,20 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.status_label.setText("Simulación completada")
 
-        # Mostrar resultados en el mapa
-        for antenna_id, coverage in results['individual'].items():
-            self.map_widget.show_coverage(antenna_id, coverage)
+        # PHASE 7: Mostrar heatmap AGREGADO por defecto (en lugar de individual superpuesto)
+        if 'aggregated' in results:
+            self.logger.info("Displaying aggregated heatmap")
+            self.map_widget.show_coverage('aggregated_coverage', results['aggregated'])
+        else:
+            # Fallback: si no hay agregada (debería siempre existir), mostrar individual
+            self.logger.warning("Aggregated coverage not found, displaying individual coverages")
+            for antenna_id, coverage in results['individual'].items():
+                self.map_widget.show_coverage(antenna_id, coverage)
 
         # Limpiar thread
         self.simulation_thread.quit()
         self.simulation_thread.wait()
-        
+
         QMessageBox.information(self, "Simulación", "Simulación completada exitosamente")
     
     @pyqtSlot(str)

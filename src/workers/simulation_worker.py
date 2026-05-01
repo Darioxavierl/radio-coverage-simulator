@@ -70,11 +70,47 @@ class SimulationWorker(QObject):
             # Modelo de propagación - usar el seleccionado en config
             model = self._get_propagation_model()
 
+            # PHASE 7: Crear grid GLOBAL una sola vez
+            self.logger.info("Creating global simulation grid...")
+            grid_lats, grid_lons, terrain_heights = self._create_simulation_grid()
+            self.logger.info(f"Global grid created: {grid_lats.shape} points")
+
             self.status_message.emit("Calculando cobertura...")
             self.progress.emit(30)
 
             results = {'individual': {}}
             antenna_times = {}  # NUEVO: Rastrear tiempos por antena
+
+            # PHASE 7: Preparar parámetros base para modelo (fuera del loop)
+            frequency_override_mhz = self.config.get('frequency_override_mhz', None)
+            if frequency_override_mhz and frequency_override_mhz > 0:
+                self.logger.debug(f"Using frequency override: {frequency_override_mhz} MHz")
+
+            base_model_params = {}
+            if self.config.get('model') == 'okumura_hata':
+                base_model_params['environment'] = self.config.get('environment', 'Urban')
+                base_model_params['city_type'] = self.config.get('city_type', 'medium')
+                base_model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
+
+            elif self.config.get('model') == 'cost231':
+                base_model_params['building_height'] = self.config.get('building_height', 15.0)
+                base_model_params['street_width'] = self.config.get('street_width', 12.0)
+                base_model_params['street_orientation'] = self.config.get('street_orientation', 0.0)
+
+            elif self.config.get('model') == 'itu_p1546':
+                base_model_params['environment'] = self.config.get('environment', 'Urban')
+                base_model_params['terrain_type'] = self.config.get('terrain_type', 'mixed')
+
+            elif self.config.get('model') == 'three_gpp_38901':
+                base_model_params['scenario'] = self.config.get('scenario', 'UMa')
+                base_model_params['h_bs'] = self.config.get('h_bs', 25.0)
+                base_model_params['h_ue'] = self.config.get('h_ue', 1.5)
+                base_model_params['use_dem'] = self.config.get('use_dem', False)
+                self.logger.debug(f"3GPP config: scenario={base_model_params['scenario']}, "
+                                f"h_bs={base_model_params['h_bs']}m, h_ue={base_model_params['h_ue']}m")
+
+            if frequency_override_mhz and frequency_override_mhz > 0:
+                base_model_params['frequency_override_mhz'] = frequency_override_mhz
 
             # Calcular para cada antena
             for i, antenna in enumerate(self.antennas):
@@ -86,106 +122,51 @@ class SimulationWorker(QObject):
 
                 self.status_message.emit(f"Calculando antena {i+1}/{len(self.antennas)}...")
 
-                # Cálculo rápido centrado en la antena
-                radius_km = self.config.get('radius_km', 5.0)
-                resolution = self.config.get('resolution', 100)
+                # Copiar parámetros base y agregar parámetros específicos de esta antena
+                model_params = base_model_params.copy()
 
-                # PHASE 3: Agregar frequency override si está configurado
-                frequency_override_mhz = self.config.get('frequency_override_mhz', None)
-                if frequency_override_mhz and frequency_override_mhz > 0:
-                    self.logger.debug(f"Using frequency override: {frequency_override_mhz} MHz")
+                # Obtener tx_elevation del terreno para esta antena
+                if self.terrain_loader and self.terrain_loader.is_loaded():
+                    tx_elevation = self.terrain_loader.get_elevation(
+                        antenna.latitude, antenna.longitude
+                    )
+                    model_params['tx_elevation'] = tx_elevation
+                    self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
+                else:
+                    model_params['tx_elevation'] = 0.0
 
-                # Parámetros adicionales para Okumura-Hata
-                model_params = {}
-                if self.config.get('model') == 'okumura_hata':
-                    model_params['environment'] = self.config.get('environment', 'Urban')
-                    model_params['city_type'] = self.config.get('city_type', 'medium')
-                    model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
-
-                    # Obtener tx_elevation del terreno
-                    if self.terrain_loader and self.terrain_loader.is_loaded():
-                        tx_elevation = self.terrain_loader.get_elevation(
-                            antenna.latitude, antenna.longitude
-                        )
-                        model_params['tx_elevation'] = tx_elevation
-                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
-                    else:
-                        model_params['tx_elevation'] = 0.0
-
-                # Parámetros adicionales para COST-231
-                if self.config.get('model') == 'cost231':
-                    model_params['building_height'] = self.config.get('building_height', 15.0)
-                    model_params['street_width'] = self.config.get('street_width', 12.0)
-                    model_params['street_orientation'] = self.config.get('street_orientation', 0.0)
-
-                    # Obtener tx_elevation del terreno
-                    if self.terrain_loader and self.terrain_loader.is_loaded():
-                        tx_elevation = self.terrain_loader.get_elevation(
-                            antenna.latitude, antenna.longitude
-                        )
-                        model_params['tx_elevation'] = tx_elevation
-                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
-                    else:
-                        model_params['tx_elevation'] = 0.0
-
-                # Parámetros adicionales para ITU-R P.1546
-                if self.config.get('model') == 'itu_p1546':
-                    model_params['environment'] = self.config.get('environment', 'Urban')
-                    model_params['terrain_type'] = self.config.get('terrain_type', 'mixed')
-
-                    # Obtener tx_elevation del terreno
-                    if self.terrain_loader and self.terrain_loader.is_loaded():
-                        tx_elevation = self.terrain_loader.get_elevation(
-                            antenna.latitude, antenna.longitude
-                        )
-                        model_params['tx_elevation'] = tx_elevation
-                        self.logger.debug(f"TX elevation for {antenna.name}: {tx_elevation:.1f}m")
-                    else:
-                        model_params['tx_elevation'] = 0.0
-
-                # Parámetros adicionales para 3GPP TR 38.901
-                if self.config.get('model') == 'three_gpp_38901':
-                    model_params['scenario'] = self.config.get('scenario', 'UMa')
-                    model_params['h_bs'] = self.config.get('h_bs', 25.0)
-                    model_params['h_ue'] = self.config.get('h_ue', 1.5)
-                    model_params['use_dem'] = self.config.get('use_dem', False)
-
-                    self.logger.debug(f"3GPP config: scenario={model_params['scenario']}, "
-                                    f"h_bs={model_params['h_bs']}m, h_ue={model_params['h_ue']}m, "
-                                    f"use_dem={model_params['use_dem']}")
-
-                # PHASE 3: Agregar frequency override a model_params si existe
-                if frequency_override_mhz and frequency_override_mhz > 0:
-                    model_params['frequency_override_mhz'] = frequency_override_mhz
-
-                coverage = self.calculator.calculate_single_antenna_quick(
+                # PHASE 7: Usar grid GLOBAL en lugar de crear uno centrado en antena
+                rsrp = self.calculator.calculate_single_antenna_coverage(
                     antenna=antenna,
-                    center_lat=antenna.latitude,
-                    center_lon=antenna.longitude,
-                    radius_km=radius_km,
-                    resolution=resolution,
+                    grid_lats=grid_lats,
+                    grid_lons=grid_lons,
+                    terrain_heights=terrain_heights,
                     model=model,
-                    model_params=model_params,
-                    terrain_loader=self.terrain_loader  # Pasar terrain_loader
+                    model_params=model_params
                 )
 
                 # Generar imagen de heatmap
                 heatmap_gen = HeatmapGenerator()
 
                 image_url = heatmap_gen.generate_heatmap_image(
-                    coverage['rsrp'],
+                    rsrp,
                     colormap='jet',
                     vmin=-120,
                     vmax=-60,
                     alpha=0.6
                 )
 
-                # Agregar bounds e image_url
-                coverage['image_url'] = image_url
-                coverage['bounds'] = [
-                    [coverage['lats'].min(), coverage['lons'].min()],
-                    [coverage['lats'].max(), coverage['lons'].max()]
-                ]
+                # Construir estructura de coverage compatible con versión anterior
+                coverage = {
+                    'lats': grid_lats,
+                    'lons': grid_lons,
+                    'rsrp': rsrp,
+                    'image_url': image_url,
+                    'bounds': [
+                        [grid_lats.min(), grid_lons.min()],
+                        [grid_lats.max(), grid_lons.max()]
+                    ]
+                }
 
                 results['individual'][antenna.id] = coverage
 
@@ -194,8 +175,52 @@ class SimulationWorker(QObject):
                 antenna_times[antenna.id] = round(antenna_time, 3)
                 self.logger.debug(f"Antenna {antenna.name} calculated in {antenna_time:.3f}s")
 
-                progress = 30 + int((i + 1) / len(self.antennas) * 60)
+                progress = 30 + int((i + 1) / len(self.antennas) * 50)
                 self.progress.emit(progress)
+
+            # PHASE 7: Calcular heatmap agregado para múltiples antenas
+            if len(self.antennas) > 1:
+                self.status_message.emit("Calculando cobertura agregada...")
+                self.logger.info("Computing aggregated coverage for multi-antenna deployment")
+
+                # Llamar método de agregación que ya existe
+                aggregated_results = self.calculator.calculate_multi_antenna_coverage(
+                    antennas=self.antennas,
+                    grid_lats=grid_lats,
+                    grid_lons=grid_lons,
+                    terrain_heights=terrain_heights,
+                    model=model,
+                    model_params=model_params
+                )
+
+                # Generar heatmap agregado
+                heatmap_gen = HeatmapGenerator()
+                aggregated_image = heatmap_gen.generate_heatmap_image(
+                    aggregated_results['rsrp'],
+                    colormap='jet',
+                    vmin=-120,
+                    vmax=-60,
+                    alpha=0.6
+                )
+
+                results['aggregated'] = {
+                    'image_url': aggregated_image,
+                    'bounds': [
+                        [grid_lats.min(), grid_lons.min()],
+                        [grid_lats.max(), grid_lons.max()]
+                    ],
+                    'rsrp': aggregated_results['rsrp'],
+                    'best_server': aggregated_results['best_server']
+                }
+
+                self.logger.info("Aggregated coverage generated successfully")
+            else:
+                # Para una sola antena, copiar la individual como agregada
+                antenna_id = self.antennas[0].id
+                results['aggregated'] = results['individual'][antenna_id]
+                self.logger.info("Single antenna deployment: using individual coverage as aggregated")
+
+            self.progress.emit(90)
 
             # NUEVO: Capturar duración total y agregar metadata
             total_time = time.perf_counter() - sim_start

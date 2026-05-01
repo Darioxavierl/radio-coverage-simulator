@@ -17,7 +17,7 @@ class ExportManager:
         Exporta resultados como CSV completo para comparativa científica
 
         Args:
-            results: Dict con structure {'individual': {...}, 'metadata': {...}}
+            results: Dict con structure {'individual': {...}, 'aggregated': {...}, 'metadata': {...}}
             base_filename: Nombre base sin extensión
         """
         csv_file = f"{base_filename}.csv"
@@ -39,20 +39,29 @@ class ExportManager:
                 metadata = results.get('metadata', {})
                 model_params = metadata.get('model_parameters', {})
 
-                # Escribir datos por antena
-                for antenna_id, coverage in results['individual'].items():
-                    lats = coverage['lats'].flatten()
-                    lons = coverage['lons'].flatten()
-                    rsrp = coverage['rsrp'].flatten()
-                    path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
-                    antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+                # PHASE 7: Usar agregada si existe, si no usar individual
+                coverage_to_export = results.get('aggregated', results['individual'])
+
+                # Si coverage_to_export es la agregada (no es dict con 'lats'), cambiar de estrategia
+                if isinstance(coverage_to_export, dict) and 'lats' not in coverage_to_export:
+                    # Es el objeto aggregated que no tiene lats/lons, usar individual
+                    coverage_to_export = results['individual']
+
+                # Escribir datos
+                if isinstance(coverage_to_export, dict) and 'lats' in coverage_to_export:
+                    # Es una cobertura individual
+                    lats = coverage_to_export['lats'].flatten()
+                    lons = coverage_to_export['lons'].flatten()
+                    rsrp = coverage_to_export['rsrp'].flatten()
+                    path_loss = coverage_to_export.get('path_loss', np.zeros_like(rsrp)).flatten()
+                    antenna_gain = coverage_to_export.get('antenna_gain', np.zeros_like(rsrp)).flatten()
 
                     for lat, lon, r, pl, ag in zip(lats, lons, rsrp, path_loss, antenna_gain):
                         writer.writerow([
-                            antenna_id,
-                            0,  # frequency - podría extraerse de antenna object
-                            0,  # tx_power - podría extraerse de antenna object
-                            0,  # tx_height - podría extraerse de antenna object
+                            'aggregated',
+                            0,
+                            0,
+                            0,
                             round(float(lat), 6),
                             round(float(lon), 6),
                             round(float(r), 2),
@@ -62,6 +71,30 @@ class ExportManager:
                             model_params.get('environment', 'N/A'),
                             model_params.get('terrain_type', 'N/A')
                         ])
+                else:
+                    # Fallback: escribir individual como antes
+                    for antenna_id, coverage in results['individual'].items():
+                        lats = coverage['lats'].flatten()
+                        lons = coverage['lons'].flatten()
+                        rsrp = coverage['rsrp'].flatten()
+                        path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
+                        antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+
+                        for lat, lon, r, pl, ag in zip(lats, lons, rsrp, path_loss, antenna_gain):
+                            writer.writerow([
+                                antenna_id,
+                                0,  # frequency - podría extraerse de antenna object
+                                0,  # tx_power - podría extraerse de antenna object
+                                0,  # tx_height - podría extraerse de antenna object
+                                round(float(lat), 6),
+                                round(float(lon), 6),
+                                round(float(r), 2),
+                                round(float(pl), 2),
+                                round(float(ag), 2),
+                                metadata.get('model_used', 'unknown'),
+                                model_params.get('environment', 'N/A'),
+                                model_params.get('terrain_type', 'N/A')
+                            ])
 
             self.logger.info(f"CSV exported: {csv_file}")
             return csv_file
@@ -139,9 +172,14 @@ class ExportManager:
             raise
 
         try:
-            # Usar primera antena como referencia
-            antenna_id = list(results['individual'].keys())[0]
-            coverage = results['individual'][antenna_id]
+            # PHASE 7: Usar agregada si existe, si no usar primera antena individual
+            if 'aggregated' in results:
+                self.logger.info("Exporting aggregated coverage to GeoTIFF")
+                coverage = results['aggregated']
+            else:
+                self.logger.info("Exporting individual coverage (first antenna) to GeoTIFF")
+                antenna_id = list(results['individual'].keys())[0]
+                coverage = results['individual'][antenna_id]
 
             # Extraer datos
             lats_2d = coverage['lats']
@@ -199,8 +237,16 @@ class ExportManager:
             filename: Ruta completa del archivo KML
         """
         try:
-            antenna_id = list(results['individual'].keys())[0]
-            coverage = results['individual'][antenna_id]
+            # PHASE 7: Usar agregada si existe, si no usar primera antena individual
+            if 'aggregated' in results:
+                self.logger.info("Exporting aggregated coverage to KML")
+                coverage = results['aggregated']
+                antenna_name = 'Aggregated Coverage'
+            else:
+                self.logger.info("Exporting individual coverage (first antenna) to KML")
+                antenna_id = list(results['individual'].keys())[0]
+                coverage = results['individual'][antenna_id]
+                antenna_name = antenna_id
 
             # Obtener bounds
             bounds = coverage['bounds']
@@ -216,7 +262,7 @@ class ExportManager:
             kml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>RF Coverage Simulation - {antenna_id}</name>
+    <name>RF Coverage Simulation - {antenna_name}</name>
     <description>Exported from RF Coverage Tool</description>
 
     <GroundOverlay>
@@ -237,7 +283,7 @@ class ExportManager:
     </GroundOverlay>
 
     <Placemark>
-      <name>Antenna Location</name>
+      <name>Coverage Center</name>
       <Point>
         <coordinates>{(west+east)/2},{(south+north)/2},0</coordinates>
       </Point>
@@ -249,7 +295,7 @@ class ExportManager:
             with open(filename, 'w') as f:
                 f.write(kml_content)
 
-            self.logger.info(f"KML con overlay exportado: {filename}")
+            self.logger.info(f"KML exportado: {filename}")
             return filename
 
         except Exception as e:
