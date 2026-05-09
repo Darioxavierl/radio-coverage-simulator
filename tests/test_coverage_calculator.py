@@ -64,6 +64,17 @@ class TestCoverageCalculator(unittest.TestCase):
         
         # Tolerancia de 5%
         self.assertAlmostEqual(distances[0, 0], expected, delta=expected * 0.05)
+
+    def test_azimuth_cardinal_directions(self):
+        """Verifica azimuth correcto para direcciones cardinales básicas."""
+        ant_lat, ant_lon = 0.0, 0.0
+        lats = np.array([[1.0, 0.0, -1.0, 0.0]])
+        lons = np.array([[0.0, 1.0, 0.0, -1.0]])
+
+        azimuths = self.calculator._calculate_azimuths(ant_lat, ant_lon, lats, lons)
+
+        expected = np.array([[0.0, 90.0, 180.0, 270.0]])
+        np.testing.assert_allclose(azimuths, expected, atol=1.0)
     
     def test_antenna_pattern_omnidirectional(self):
         """Verifica patrón omnidireccional"""
@@ -115,6 +126,31 @@ class TestCoverageCalculator(unittest.TestCase):
         # RSRP típico entre -120 y -40 dBm
         self.assertTrue(np.all(result['rsrp'] > -150))
         self.assertTrue(np.all(result['rsrp'] < 50))
+
+    def test_detailed_single_coverage(self):
+        """Verifica que el cálculo detallado preserve rsrp, path loss y ganancia."""
+        model = FreeSpacePathLossModel(compute_module=self.calculator.xp)
+
+        lats = np.linspace(self.test_antenna.latitude - 0.01, self.test_antenna.latitude + 0.01, 20)
+        lons = np.linspace(self.test_antenna.longitude - 0.01, self.test_antenna.longitude + 0.01, 20)
+        grid_lats, grid_lons = np.meshgrid(lats, lons)
+        terrain_heights = np.zeros_like(grid_lats)
+
+        result = self.calculator.calculate_single_antenna_coverage(
+            antenna=self.test_antenna,
+            grid_lats=grid_lats,
+            grid_lons=grid_lons,
+            terrain_heights=terrain_heights,
+            model=model,
+            return_details=True,
+        )
+
+        self.assertIn('rsrp', result)
+        self.assertIn('path_loss', result)
+        self.assertIn('antenna_gain', result)
+        self.assertEqual(result['rsrp'].shape, grid_lats.shape)
+        self.assertEqual(result['path_loss'].shape, grid_lats.shape)
+        self.assertEqual(result['antenna_gain'].shape, grid_lats.shape)
     
     def test_dynamic_xp_property(self):
         """Verifica que xp es dinámico y se actualiza con engine"""

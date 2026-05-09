@@ -7,7 +7,8 @@ Standard: Study on Channel Model for Frequencies from 0.5 to 100 GHz
 
 Two operational modes:
 1. Probabilistic: Standard LOS/NLOS probability model (fast, comparable)
-2. Deterministic: With terrain integration and diffraction (realistic, slower)
+2. Probabilistic + approximate terrain correction: DEM-based additive correction
+    intended as a first-order approximation (not a full ray-tracing solver)
 """
 
 import numpy as np
@@ -105,6 +106,7 @@ class ThreGPP38901Model:
         self.h_bs = self.config.get('h_bs', scenario_params['h_bs_typical'])
         self.h_ue = self.config.get('h_ue', 1.5)
         self.use_dem = self.config.get('use_dem', False)
+        self._dem_warning_emitted = False
 
         # Validate heights
         h_bs_min, h_bs_max = scenario_params['h_bs_range']
@@ -139,6 +141,7 @@ class ThreGPP38901Model:
             'h_bs_m': self.h_bs,
             'h_ue_m': self.h_ue,
             'use_dem': self.use_dem,
+            'terrain_mode': 'approximate_dem_correction' if self.use_dem else 'probabilistic_only',
             'height_correction_db': scenario_params['height_correction'],
         }
 
@@ -243,6 +246,12 @@ class ThreGPP38901Model:
 
         # Apply deterministic terrain corrections if available
         if self.use_dem and terrain_heights is not None:
+            if not self._dem_warning_emitted:
+                warnings.warn(
+                    "3GPP terrain correction mode is an approximate DEM-based adjustment, not full deterministic ray-tracing.",
+                    UserWarning
+                )
+                self._dem_warning_emitted = True
             terrain_heights = self.xp.asarray(terrain_heights)
             diffraction_correction = self._apply_terrain_correction(
                 distances_m, f_ghz, terrain_heights, h_bs, h_ue
@@ -329,10 +338,10 @@ class ThreGPP38901Model:
         h_ue: float
     ) -> np.ndarray:
         """
-        Apply terrain-based diffraction correction (deterministic mode).
+        Apply terrain-based diffraction correction (approximate mode).
 
-        Uses first Fresnel zone clearance criterion to detect obstructions
-        and applies knife-edge diffraction loss.
+        Uses a simplified Fresnel-inspired heuristic to estimate additional loss.
+        This is intentionally lightweight and does not reconstruct full path profiles.
         """
         # Initialize correction as zeros
         correction = self.xp.zeros_like(distances_m, dtype=float)

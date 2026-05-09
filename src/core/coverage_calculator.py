@@ -23,7 +23,8 @@ class CoverageCalculator:
         grid_lons: np.ndarray,
         terrain_heights: np.ndarray,
         model,
-        model_params: dict = None
+        model_params: dict = None,
+        return_details: bool = False
     ) -> np.ndarray:
         """
         Calcula cobertura para una antena
@@ -35,9 +36,10 @@ class CoverageCalculator:
             terrain_heights: Array 2D con elevaciones del terreno
             model: Modelo de propagación
             model_params: Parámetros adicionales para el modelo
+            return_details: Si es True, retorna también path loss y ganancia
 
         Returns:
-            Array 2D con RSRP en dBm para cada punto del grid
+            Array 2D con RSRP en dBm para cada punto del grid o un dict detallado
         """
         self.logger.info(f"Calculating coverage for {antenna.name}")
 
@@ -82,6 +84,15 @@ class CoverageCalculator:
         # Convertir de vuelta a CPU si es necesario
         if self.engine.use_gpu:
             rsrp = self.xp.asnumpy(rsrp)
+            path_loss = self.xp.asnumpy(path_loss)
+            antenna_gain = self.xp.asnumpy(antenna_gain)
+
+        if return_details:
+            return {
+                'rsrp': rsrp,
+                'path_loss': path_loss,
+                'antenna_gain': antenna_gain,
+            }
 
         return rsrp
     
@@ -182,10 +193,21 @@ class CoverageCalculator:
     
     def _calculate_azimuths(self, ant_lat, ant_lon, grid_lats, grid_lons):
         """Calcula azimuth desde antena a cada punto"""
-        dlat = grid_lats - ant_lat
-        dlon = grid_lons - ant_lon
-        
-        azimuth = self.xp.degrees(self.xp.arctan2(dlon, dlat))
+        lat1 = self.xp.radians(ant_lat)
+        lon1 = self.xp.radians(ant_lon)
+        lat2 = self.xp.radians(grid_lats)
+        lon2 = self.xp.radians(grid_lons)
+
+        dlon = lon2 - lon1
+
+        # Bearing inicial geodésico (forward azimuth) en esfera.
+        y = self.xp.sin(dlon) * self.xp.cos(lat2)
+        x = (
+            self.xp.cos(lat1) * self.xp.sin(lat2)
+            - self.xp.sin(lat1) * self.xp.cos(lat2) * self.xp.cos(dlon)
+        )
+
+        azimuth = self.xp.degrees(self.xp.arctan2(y, x))
         azimuth = (azimuth + 360) % 360
         
         return azimuth

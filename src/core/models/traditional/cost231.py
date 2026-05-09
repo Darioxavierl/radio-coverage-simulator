@@ -273,7 +273,7 @@ class COST231WalfischIkegamiModel:
         # Criterio de LOS/NLOS: 30m es threshold tipico para urban canyon
         # Si TX esta >30m sobre terreno promedio, hay LOS probable
         # Si TX esta <= 30m sobre terreno, hay NLOS probable (obstaculos)
-        los_mask = delta_h > 30.0
+        los_mask = self.xp.full(distances.shape, delta_h > 30.0, dtype=bool)
 
         return los_mask
 

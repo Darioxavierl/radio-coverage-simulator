@@ -187,8 +187,5 @@ class SettingsDialog(QDialog):
             else:
                 mode = "GPU" if new_use_gpu else "CPU"
                 self.logger.info(f"Compute mode changed to {mode}")
-        
-        # Guardar configuración
-        self.config.save_settings(self.get_settings())
-        
+
         super().accept()

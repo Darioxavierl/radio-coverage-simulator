@@ -355,8 +355,7 @@ class MainWindow(QMainWindow):
     
     def _create_default_project(self):
         """Crea un proyecto por defecto al iniciar la aplicación"""
-        from src.models.project import Project
-        self.current_project = Project(name="Proyecto Sin Título")
+        self.current_project = self.project_manager.create_new_project("Proyecto Sin Título")
         
         # Guardar posición inicial del mapa
         default_center = self.config.settings['ui']['default_map_center']
@@ -496,8 +495,7 @@ class MainWindow(QMainWindow):
                 return
         
         # Crear nuevo proyecto
-        from src.models.project import Project
-        self.current_project = Project(name="Nuevo Proyecto")
+        self.current_project = self.project_manager.create_new_project("Nuevo Proyecto")
         
         # Detener simulación si está corriendo
         if self.simulation_running:
@@ -539,8 +537,7 @@ class MainWindow(QMainWindow):
         
         if filename:
             try:
-                from src.models.project import Project
-                self.current_project = Project.load_from_file(filename)
+                self.current_project = self.project_manager.load_project(filename)
                 
                 # Detener simulación si está corriendo
                 if self.simulation_running:
@@ -600,7 +597,7 @@ class MainWindow(QMainWindow):
             self._update_project_before_save()
             
             # Guardar
-            self.current_project.save_to_file(filepath)
+            self.project_manager.save_project(self.current_project, filepath)
             
             self._update_window_title()
             self.logger.info(f"Project saved: {filepath}")
@@ -630,8 +627,7 @@ class MainWindow(QMainWindow):
         """Guarda el proyecto con un nuevo nombre"""
         # Si no hay proyecto, crear uno
         if not self.current_project:
-            from src.models.project import Project
-            self.current_project = Project(name="Nuevo Proyecto")
+            self.current_project = self.project_manager.create_new_project("Nuevo Proyecto")
         
         filename, _ = QFileDialog.getSaveFileName(
             self, "Guardar Proyecto Como", "data/projects",
@@ -647,7 +643,7 @@ class MainWindow(QMainWindow):
                 self._update_project_before_save()
                 
                 # Guardar
-                self.current_project.save_to_file(filename)
+                self.project_manager.save_project(self.current_project, filename)
                 
                 self._update_window_title()
                 self.logger.info(f"Project saved as: {filename}")
@@ -671,7 +667,7 @@ class MainWindow(QMainWindow):
         
         # Mostrar diálogo de simulación
         from src.ui.dialogs.simulation_dialog import SimulationDialog
-        dialog = SimulationDialog(antennas, self)
+        dialog = SimulationDialog(antennas, terrain_loader=self.terrain_loader, parent=self)
         
         if dialog.exec():
             self.logger.info("Starting simulation...")
@@ -732,9 +728,7 @@ class MainWindow(QMainWindow):
             for antenna_id, coverage in results['individual'].items():
                 self.map_widget.show_coverage(antenna_id, coverage)
 
-        # Limpiar thread
-        self.simulation_thread.quit()
-        self.simulation_thread.wait()
+        self._cleanup_simulation_thread()
 
         QMessageBox.information(self, "Simulación", "Simulación completada exitosamente")
     
@@ -745,12 +739,17 @@ class MainWindow(QMainWindow):
         self.simulation_running = False
         self.progress_bar.setVisible(False)
         self.status_label.setText("Error en simulación")
-        
-        # Limpiar thread
-        self.simulation_thread.quit()
-        self.simulation_thread.wait()
+
+        self._cleanup_simulation_thread()
         
         QMessageBox.critical(self, "Error", f"Error en la simulación:\n{error_msg}")
+
+    def _cleanup_simulation_thread(self):
+        """Detiene y libera el thread de simulación si sigue activo."""
+        if hasattr(self, 'simulation_thread') and self.simulation_thread:
+            if self.simulation_thread.isRunning():
+                self.simulation_thread.quit()
+                self.simulation_thread.wait()
     
     def stop_simulation(self):
         """Detiene la simulación en ejecución"""
@@ -878,8 +877,34 @@ class MainWindow(QMainWindow):
     
     def show_coverage_analysis(self):
         """Muestra análisis detallado de cobertura"""
-        # TODO: Implementar ventana de análisis
-        pass
+        if not hasattr(self, 'last_simulation_results'):
+            QMessageBox.information(self, "Análisis", "No hay resultados de simulación para analizar.")
+            return
+
+        results = self.last_simulation_results
+        metadata = results.get('metadata', {})
+        aggregated = results.get('aggregated', {})
+
+        rsrp = aggregated.get('rsrp')
+        if rsrp is not None:
+            rsrp_min = float(rsrp.min())
+            rsrp_max = float(rsrp.max())
+            rsrp_mean = float(rsrp.mean())
+        else:
+            rsrp_min = rsrp_max = rsrp_mean = float('nan')
+
+        analysis_text = (
+            f"Antenas simuladas: {metadata.get('num_antennas', len(results.get('individual', {})))}\n"
+            f"Modelo: {metadata.get('model_used', 'unknown')}\n"
+            f"GPU usada: {'Sí' if metadata.get('gpu_used', False) else 'No'}\n"
+            f"Tiempo total: {metadata.get('total_execution_time_seconds', 'N/A')} s\n"
+            f"\n"
+            f"RSRP agregado mínimo: {rsrp_min:.2f} dBm\n"
+            f"RSRP agregado máximo: {rsrp_max:.2f} dBm\n"
+            f"RSRP agregado promedio: {rsrp_mean:.2f} dBm"
+        )
+
+        QMessageBox.information(self, "Análisis de Cobertura", analysis_text)
     
     def show_about(self):
         """Muestra información sobre la aplicación"""

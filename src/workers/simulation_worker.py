@@ -136,14 +136,17 @@ class SimulationWorker(QObject):
                     model_params['tx_elevation'] = 0.0
 
                 # PHASE 7: Usar grid GLOBAL en lugar de crear uno centrado en antena
-                rsrp = self.calculator.calculate_single_antenna_coverage(
+                coverage_result = self.calculator.calculate_single_antenna_coverage(
                     antenna=antenna,
                     grid_lats=grid_lats,
                     grid_lons=grid_lons,
                     terrain_heights=terrain_heights,
                     model=model,
-                    model_params=model_params
+                    model_params=model_params,
+                    return_details=True,
                 )
+
+                rsrp = coverage_result['rsrp']
 
                 # Generar imagen de heatmap
                 heatmap_gen = HeatmapGenerator()
@@ -161,6 +164,15 @@ class SimulationWorker(QObject):
                     'lats': grid_lats,
                     'lons': grid_lons,
                     'rsrp': rsrp,
+                    'path_loss': coverage_result['path_loss'],
+                    'antenna_gain': coverage_result['antenna_gain'],
+                    'antenna': {
+                        'id': antenna.id,
+                        'name': antenna.name,
+                        'frequency_mhz': antenna.frequency_mhz,
+                        'tx_power_dbm': antenna.tx_power_dbm,
+                        'tx_height_m': antenna.height_agl,
+                    },
                     'image_url': image_url,
                     'bounds': [
                         [grid_lats.min(), grid_lons.min()],
@@ -204,6 +216,8 @@ class SimulationWorker(QObject):
                 )
 
                 results['aggregated'] = {
+                    'lats': grid_lats,
+                    'lons': grid_lons,
                     'image_url': aggregated_image,
                     'bounds': [
                         [grid_lats.min(), grid_lons.min()],
@@ -212,6 +226,33 @@ class SimulationWorker(QObject):
                     'rsrp': aggregated_results['rsrp'],
                     'best_server': aggregated_results['best_server']
                 }
+
+                # Derivar métricas agregadas a partir de la antena dominante por píxel.
+                antenna_ids = list(results['individual'].keys())
+                if antenna_ids:
+                    rsrp_stack = np.stack([
+                        results['individual'][ant_id]['rsrp'] for ant_id in antenna_ids
+                    ], axis=0)
+                    best_indices = np.argmax(rsrp_stack, axis=0)
+                    expanded_indices = np.expand_dims(best_indices, axis=0)
+
+                    path_loss_stack = np.stack([
+                        results['individual'][ant_id]['path_loss'] for ant_id in antenna_ids
+                    ], axis=0)
+                    antenna_gain_stack = np.stack([
+                        results['individual'][ant_id]['antenna_gain'] for ant_id in antenna_ids
+                    ], axis=0)
+
+                    results['aggregated']['path_loss'] = np.take_along_axis(
+                        path_loss_stack,
+                        expanded_indices,
+                        axis=0
+                    )[0]
+                    results['aggregated']['antenna_gain'] = np.take_along_axis(
+                        antenna_gain_stack,
+                        expanded_indices,
+                        axis=0
+                    )[0]
 
                 self.logger.info("Aggregated coverage generated successfully")
             else:
@@ -260,15 +301,30 @@ class SimulationWorker(QObject):
     
     def _create_simulation_grid(self):
         """Crea grid de puntos para simulación"""
-        # Determinar bounds
+        # Determinar bounds a partir de la distribución actual de antenas
         lats = [ant.latitude for ant in self.antennas]
         lons = [ant.longitude for ant in self.antennas]
-        
-        min_lat, max_lat = min(lats) - 0.05, max(lats) + 0.05
-        min_lon, max_lon = min(lons) - 0.05, max(lons) + 0.05
+
+        center_lat = (min(lats) + max(lats)) / 2.0
+        center_lon = (min(lons) + max(lons)) / 2.0
+
+        # Honrar el radio configurado sin recortar despliegues existentes.
+        radius_km = float(self.config.get('radius_km', 5.0) or 5.0)
+        lat_radius_deg = radius_km / 111.0
+
+        cos_lat = np.cos(np.radians(center_lat))
+        if abs(cos_lat) < 1e-6:
+            cos_lat = 1e-6
+        lon_radius_deg = radius_km / (111.0 * abs(cos_lat))
+
+        half_span_lat = max((max(lats) - min(lats)) / 2.0, lat_radius_deg)
+        half_span_lon = max((max(lons) - min(lons)) / 2.0, lon_radius_deg)
+
+        min_lat, max_lat = center_lat - half_span_lat, center_lat + half_span_lat
+        min_lon, max_lon = center_lon - half_span_lon, center_lon + half_span_lon
         
         # Resolución configurable
-        resolution = self.config.get('resolution', 100)  # puntos por grado
+        resolution = self.config.get('resolution', 100)
         
         grid_lats = np.linspace(min_lat, max_lat, resolution)
         grid_lons = np.linspace(min_lon, max_lon, resolution)

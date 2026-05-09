@@ -151,6 +151,22 @@ class TestCOST231LOSvNLOS(unittest.TestCase):
     def setUp(self):
         self.model = COST231WalfischIkegamiModel()
 
+    def test_determine_los_nlos_returns_pointwise_mask(self):
+        """Test: la mascara LOS/NLOS debe preservar el shape del array."""
+        distances = np.array([100.0, 200.0, 500.0])
+        terrain = np.array([2400.0, 2400.0, 2400.0])
+
+        los_mask = self.model._determine_los_nlos(
+            distances=distances,
+            tx_height=50.0,
+            terrain_heights=terrain,
+            tx_elevation=2500.0,
+            mobile_height=1.5
+        )
+
+        self.assertEqual(los_mask.shape, distances.shape)
+        self.assertTrue(np.all(los_mask))
+
     def test_los_with_flat_terrain(self):
         """Test: Determinar LOS en terreno plano"""
         distances = np.array([100.0, 1000.0])

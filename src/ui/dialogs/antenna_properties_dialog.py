@@ -7,6 +7,17 @@ import logging
 
 class AntennaPropertiesDialog(QDialog):
     """Diálogo de propiedades de antena"""
+
+    TECHNOLOGY_FREQUENCY_MHZ = {
+        Technology.GSM_900: 900.0,
+        Technology.GSM_1800: 1800.0,
+        Technology.UMTS_2100: 2100.0,
+        Technology.LTE_700: 700.0,
+        Technology.LTE_1800: 1800.0,
+        Technology.LTE_2600: 2600.0,
+        Technology.NR_3500: 3500.0,
+        Technology.NR_28000: 28000.0,
+    }
     
     def __init__(self, antenna: Antenna, parent=None):
         super().__init__(parent)
@@ -100,6 +111,7 @@ class AntennaPropertiesDialog(QDialog):
         self.technology_combo = QComboBox()
         for tech in Technology:
             self.technology_combo.addItem(tech.value, tech)
+        self.technology_combo.currentIndexChanged.connect(self._on_technology_changed)
         layout.addRow("Tecnología:", self.technology_combo)
         
         # Frecuencia
@@ -107,6 +119,8 @@ class AntennaPropertiesDialog(QDialog):
         self.frequency_spin.setRange(30, 100000)
         self.frequency_spin.setSuffix(" MHz")
         self.frequency_spin.setDecimals(1)
+        self.frequency_spin.setEnabled(False)
+        self.frequency_spin.setToolTip("La frecuencia se sincroniza automáticamente con la tecnología seleccionada")
         layout.addRow("Frecuencia:", self.frequency_spin)
         
         # Ancho de banda
@@ -213,8 +227,10 @@ class AntennaPropertiesDialog(QDialog):
         tech_index = self.technology_combo.findData(self.antenna.technology)
         if tech_index >= 0:
             self.technology_combo.setCurrentIndex(tech_index)
-        
-        self.frequency_spin.setValue(self.antenna.frequency_mhz)
+            self._sync_frequency_with_technology(self.antenna.technology)
+        else:
+            self.frequency_spin.setValue(self.antenna.frequency_mhz)
+
         self.bandwidth_spin.setValue(self.antenna.bandwidth_mhz)
         self.tx_power_spin.setValue(self.antenna.tx_power_dbm)
         
@@ -232,13 +248,17 @@ class AntennaPropertiesDialog(QDialog):
     
     def get_properties(self) -> dict:
         """Retorna propiedades actualizadas"""
+        selected_technology = self.technology_combo.currentData()
+        if selected_technology is not None:
+            self._sync_frequency_with_technology(selected_technology)
+
         return {
             'name': self.name_edit.text(),
             'latitude': self.lat_spin.value(),
             'longitude': self.lon_spin.value(),
             'height_agl': self.height_spin.value(),
             'notes': self.notes_edit.text(),
-            'technology': self.technology_combo.currentData(),
+            'technology': selected_technology,
             'frequency_mhz': self.frequency_spin.value(),
             'bandwidth_mhz': self.bandwidth_spin.value(),
             'tx_power_dbm': self.tx_power_spin.value(),
@@ -250,3 +270,15 @@ class AntennaPropertiesDialog(QDialog):
             'horizontal_beamwidth': self.h_beamwidth_spin.value(),
             'vertical_beamwidth': self.v_beamwidth_spin.value()
         }
+
+    def _on_technology_changed(self, index: int):
+        """Sincroniza frecuencia al cambiar tecnología."""
+        technology = self.technology_combo.itemData(index)
+        if technology is not None:
+            self._sync_frequency_with_technology(technology)
+
+    def _sync_frequency_with_technology(self, technology: Technology):
+        """Ajusta frecuencia a la banda nominal de la tecnología elegida."""
+        default_frequency = self.TECHNOLOGY_FREQUENCY_MHZ.get(technology)
+        if default_frequency is not None:
+            self.frequency_spin.setValue(default_frequency)

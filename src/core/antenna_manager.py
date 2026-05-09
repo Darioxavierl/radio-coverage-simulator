@@ -2,6 +2,7 @@ from typing import List, Optional, Dict
 from models.antenna import Antenna
 from PyQt6.QtCore import QObject, pyqtSignal
 import logging
+import uuid
 
 class AntennaManager(QObject):
     """Gestiona todas las antenas del proyecto"""

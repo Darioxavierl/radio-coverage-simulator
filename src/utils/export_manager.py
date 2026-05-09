@@ -1,5 +1,6 @@
 import json
 import csv
+import base64
 import numpy as np
 from pathlib import Path
 from datetime import datetime
@@ -39,29 +40,20 @@ class ExportManager:
                 metadata = results.get('metadata', {})
                 model_params = metadata.get('model_parameters', {})
 
-                # PHASE 7: Usar agregada si existe, si no usar individual
-                coverage_to_export = results.get('aggregated', results['individual'])
-
-                # Si coverage_to_export es la agregada (no es dict con 'lats'), cambiar de estrategia
-                if isinstance(coverage_to_export, dict) and 'lats' not in coverage_to_export:
-                    # Es el objeto aggregated que no tiene lats/lons, usar individual
-                    coverage_to_export = results['individual']
-
-                # Escribir datos
-                if isinstance(coverage_to_export, dict) and 'lats' in coverage_to_export:
-                    # Es una cobertura individual
-                    lats = coverage_to_export['lats'].flatten()
-                    lons = coverage_to_export['lons'].flatten()
-                    rsrp = coverage_to_export['rsrp'].flatten()
-                    path_loss = coverage_to_export.get('path_loss', np.zeros_like(rsrp)).flatten()
-                    antenna_gain = coverage_to_export.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+                for antenna_id, coverage in results['individual'].items():
+                    antenna_info = coverage.get('antenna', {})
+                    lats = coverage['lats'].flatten()
+                    lons = coverage['lons'].flatten()
+                    rsrp = coverage['rsrp'].flatten()
+                    path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
+                    antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
 
                     for lat, lon, r, pl, ag in zip(lats, lons, rsrp, path_loss, antenna_gain):
                         writer.writerow([
-                            'aggregated',
-                            0,
-                            0,
-                            0,
+                            antenna_id,
+                            antenna_info.get('frequency_mhz', ''),
+                            antenna_info.get('tx_power_dbm', ''),
+                            antenna_info.get('tx_height_m', ''),
                             round(float(lat), 6),
                             round(float(lon), 6),
                             round(float(r), 2),
@@ -71,30 +63,6 @@ class ExportManager:
                             model_params.get('environment', 'N/A'),
                             model_params.get('terrain_type', 'N/A')
                         ])
-                else:
-                    # Fallback: escribir individual como antes
-                    for antenna_id, coverage in results['individual'].items():
-                        lats = coverage['lats'].flatten()
-                        lons = coverage['lons'].flatten()
-                        rsrp = coverage['rsrp'].flatten()
-                        path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
-                        antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
-
-                        for lat, lon, r, pl, ag in zip(lats, lons, rsrp, path_loss, antenna_gain):
-                            writer.writerow([
-                                antenna_id,
-                                0,  # frequency - podría extraerse de antenna object
-                                0,  # tx_power - podría extraerse de antenna object
-                                0,  # tx_height - podría extraerse de antenna object
-                                round(float(lat), 6),
-                                round(float(lon), 6),
-                                round(float(r), 2),
-                                round(float(pl), 2),
-                                round(float(ag), 2),
-                                metadata.get('model_used', 'unknown'),
-                                model_params.get('environment', 'N/A'),
-                                model_params.get('terrain_type', 'N/A')
-                            ])
 
             self.logger.info(f"CSV exported: {csv_file}")
             return csv_file
@@ -255,8 +223,23 @@ class ExportManager:
             east = bounds[1][1]
             west = bounds[0][1]
 
-            # Obtener imagen heatmap (ya en base64 en coverage['image_url'])
+            # Obtener imagen heatmap
             image_url = coverage.get('image_url', '')
+            icon_href = image_url
+
+            # Si viene en data URL, exportar PNG externo para mayor compatibilidad KML
+            if image_url.startswith('data:image') and ';base64,' in image_url:
+                base64_data = image_url.split(';base64,', 1)[1]
+                image_bytes = base64.b64decode(base64_data)
+
+                kml_path = Path(filename)
+                image_filename = f"{kml_path.stem}_overlay.png"
+                image_path = kml_path.with_name(image_filename)
+
+                with open(image_path, 'wb') as img_file:
+                    img_file.write(image_bytes)
+
+                icon_href = image_filename
 
             # Crear KML
             kml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -269,7 +252,7 @@ class ExportManager:
       <name>Coverage Heatmap</name>
       <description>RSRP Coverage (dBm)</description>
       <Icon>
-        <href>{image_url}</href>
+                <href>{icon_href}</href>
         <viewBoundScale>0.75</viewBoundScale>
       </Icon>
       <LatLonBox>

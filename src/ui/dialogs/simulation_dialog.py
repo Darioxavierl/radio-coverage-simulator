@@ -5,9 +5,10 @@ from PyQt6.QtCore import Qt
 from pathlib import Path
 
 class SimulationDialog(QDialog):
-    def __init__(self, antennas, parent=None):
+    def __init__(self, antennas, terrain_loader=None, parent=None):
         super().__init__(parent)
         self.antennas = antennas
+        self.terrain_loader = terrain_loader
         self.setWindowTitle("Configurar Simulación")
         self.setMinimumSize(500, 600)
 
@@ -20,6 +21,11 @@ class SimulationDialog(QDialog):
 
         self.terrain_available = False
         self.terrain_stats = {}
+
+        if self.terrain_loader is not None and self.terrain_loader.is_loaded():
+            self.terrain_available = True
+            self.terrain_stats = self.terrain_loader.get_stats()
+            return
 
         terrain_file = Path('data/terrain/cuenca_terrain.tif')
         if terrain_file.exists():
