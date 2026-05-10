@@ -93,7 +93,24 @@ class ExportManager:
                     'gpu_used': metadata.get('gpu_used'),
                     'gpu_device': metadata.get('gpu_device'),
                     'total_execution_time_seconds': metadata.get('total_execution_time_seconds'),
-                    'antenna_times_seconds': metadata.get('antenna_times_seconds', {})
+
+                    # Compatibilidad: si existe esquema nuevo úsalo, si no usa el viejo
+                    'antenna_times_seconds': metadata.get(
+                        'antenna_total_times_seconds',
+                        metadata.get('antenna_times_seconds', {})
+                    ),
+
+                    # Nuevas métricas por etapa
+                    'terrain_loading_time_seconds': metadata.get('terrain_loading_time_seconds'),
+                    'antenna_total_times_seconds': metadata.get(
+                        'antenna_total_times_seconds',
+                        metadata.get('antenna_times_seconds', {})
+                    ),
+                    'antenna_coverage_times_seconds': metadata.get('antenna_coverage_times_seconds', {}),
+                    'antenna_render_times_seconds': metadata.get('antenna_render_times_seconds', {}),
+                    'multi_antenna_aggregation_time_seconds': metadata.get(
+                        'multi_antenna_aggregation_time_seconds'
+                    )
                 },
                 'grid_parameters': metadata.get('grid_parameters', {}),
                 'propagation_model': {

@@ -73,13 +73,16 @@ class SimulationWorker(QObject):
             # PHASE 7: Crear grid GLOBAL una sola vez
             self.logger.info("Creating global simulation grid...")
             grid_lats, grid_lons, terrain_heights = self._create_simulation_grid()
-            self.logger.info(f"Global grid created: {grid_lats.shape} points")
+            terrain_time = time.perf_counter() - sim_start  # NUEVA: Checkpoint terrain loading
+            self.logger.info(f"Global grid created: {grid_lats.shape} points (terrain load: {terrain_time:.3f}s)")
 
             self.status_message.emit("Calculando cobertura...")
             self.progress.emit(30)
 
             results = {'individual': {}}
             antenna_times = {}  # NUEVO: Rastrear tiempos por antena
+            antenna_coverage_times = {}  # NUEVA: Timing de cálculo (sin render)
+            antenna_render_times = {}  # NUEVA: Timing de render
 
             # PHASE 7: Preparar parámetros base para modelo (fuera del loop)
             frequency_override_mhz = self.config.get('frequency_override_mhz', None)
@@ -136,6 +139,7 @@ class SimulationWorker(QObject):
                     model_params['tx_elevation'] = 0.0
 
                 # PHASE 7: Usar grid GLOBAL en lugar de crear uno centrado en antena
+                coverage_start = time.perf_counter()  # NUEVA: Checkpoint inicio coverage calc
                 coverage_result = self.calculator.calculate_single_antenna_coverage(
                     antenna=antenna,
                     grid_lats=grid_lats,
@@ -145,27 +149,42 @@ class SimulationWorker(QObject):
                     model_params=model_params,
                     return_details=True,
                 )
+                coverage_calc_time = time.perf_counter() - coverage_start  # NUEVA: Timing coverage calc
+                antenna_coverage_times[antenna.id] = round(coverage_calc_time, 3)
 
                 rsrp = coverage_result['rsrp']
+                
+                # OPTIMIZACION: Convertir a NumPy para render (matplotlib requiere NumPy)
+                if self.calculator.engine.use_gpu:
+                    rsrp_numpy = self.calculator.xp.asnumpy(rsrp)
+                    path_loss_numpy = self.calculator.xp.asnumpy(coverage_result['path_loss'])
+                    antenna_gain_numpy = self.calculator.xp.asnumpy(coverage_result['antenna_gain'])
+                else:
+                    rsrp_numpy = rsrp
+                    path_loss_numpy = coverage_result['path_loss']
+                    antenna_gain_numpy = coverage_result['antenna_gain']
 
                 # Generar imagen de heatmap
+                render_start = time.perf_counter()  # NUEVA: Checkpoint inicio render
                 heatmap_gen = HeatmapGenerator()
 
                 image_url = heatmap_gen.generate_heatmap_image(
-                    rsrp,
+                    rsrp_numpy,
                     colormap='jet',
                     vmin=-120,
                     vmax=-60,
                     alpha=0.6
                 )
+                render_time = time.perf_counter() - render_start  # NUEVA: Timing render
+                antenna_render_times[antenna.id] = round(render_time, 3)
 
                 # Construir estructura de coverage compatible con versión anterior
                 coverage = {
                     'lats': grid_lats,
                     'lons': grid_lons,
-                    'rsrp': rsrp,
-                    'path_loss': coverage_result['path_loss'],
-                    'antenna_gain': coverage_result['antenna_gain'],
+                    'rsrp': rsrp_numpy,
+                    'path_loss': path_loss_numpy,
+                    'antenna_gain': antenna_gain_numpy,
                     'antenna': {
                         'id': antenna.id,
                         'name': antenna.name,
@@ -191,6 +210,7 @@ class SimulationWorker(QObject):
                 self.progress.emit(progress)
 
             # PHASE 7: Calcular heatmap agregado para múltiples antenas
+            aggregation_start = time.perf_counter()  # NUEVA: Checkpoint inicio aggregation
             if len(self.antennas) > 1:
                 self.status_message.emit("Calculando cobertura agregada...")
                 self.logger.info("Computing aggregated coverage for multi-antenna deployment")
@@ -261,6 +281,7 @@ class SimulationWorker(QObject):
                 results['aggregated'] = results['individual'][antenna_id]
                 self.logger.info("Single antenna deployment: using individual coverage as aggregated")
 
+            aggregation_time = time.perf_counter() - aggregation_start  # NUEVA: Timing aggregation
             self.progress.emit(90)
 
             # NUEVO: Capturar duración total y agregar metadata
@@ -271,7 +292,11 @@ class SimulationWorker(QObject):
                 'gpu_used': gpu_used,
                 'gpu_device': gpu_device,
                 'total_execution_time_seconds': round(total_time, 2),
-                'antenna_times_seconds': antenna_times,
+                'terrain_loading_time_seconds': round(terrain_time, 3),
+                'antenna_total_times_seconds': antenna_times,
+                'antenna_coverage_times_seconds': antenna_coverage_times,
+                'antenna_render_times_seconds': antenna_render_times,
+                'multi_antenna_aggregation_time_seconds': round(aggregation_time, 3),
                 'num_antennas': len(self.antennas),
                 'grid_parameters': {
                     'radius_km': self.config.get('radius_km', 5.0),

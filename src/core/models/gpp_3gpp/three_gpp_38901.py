@@ -7,8 +7,7 @@ Standard: Study on Channel Model for Frequencies from 0.5 to 100 GHz
 
 Two operational modes:
 1. Probabilistic: Standard LOS/NLOS probability model (fast, comparable)
-2. Probabilistic + approximate terrain correction: DEM-based additive correction
-    intended as a first-order approximation (not a full ray-tracing solver)
+2. Probabilistic + terrain diffraction (ITU-R P.526 knife-edge, effective profile)
 """
 
 import numpy as np
@@ -106,6 +105,8 @@ class ThreGPP38901Model:
         self.h_bs = self.config.get('h_bs', scenario_params['h_bs_typical'])
         self.h_ue = self.config.get('h_ue', 1.5)
         self.use_dem = self.config.get('use_dem', False)
+        self.dem_profile_samples = int(self.config.get('dem_profile_samples', 16))
+        self.max_terrain_correction_db = float(self.config.get('max_terrain_correction_db', 40.0))
         self._dem_warning_emitted = False
 
         # Validate heights
@@ -141,8 +142,10 @@ class ThreGPP38901Model:
             'h_bs_m': self.h_bs,
             'h_ue_m': self.h_ue,
             'use_dem': self.use_dem,
-            'terrain_mode': 'approximate_dem_correction' if self.use_dem else 'probabilistic_only',
+            'terrain_mode': 'itu_r_p526_knife_edge_effective' if self.use_dem else 'probabilistic_only',
             'height_correction_db': scenario_params['height_correction'],
+            'dem_profile_samples': self.dem_profile_samples,
+            'max_terrain_correction_db': self.max_terrain_correction_db,
         }
 
     def calculate_path_loss(
@@ -210,12 +213,10 @@ class ThreGPP38901Model:
 
         # Convert distances to numpy array if needed
         distances = self.xp.asarray(distances)
+        distances_m = self.xp.maximum(distances, 1.0)
 
-        # Convert distances from meters to kilometers
-        # IMPORTANT: CoverageCalculator ALWAYS provides distances in METERS via Haversine
-        # No heuristic detection - distances are ALWAYS expected in meters
-        distances_km = distances / 1000.0
-        distances_m = distances  # Already in meters from source
+        if self.xp.any(~self.xp.isfinite(distances_m)):
+            raise ValueError("distances contains non-finite values")
 
         # Validate distance range (check in meters)
         scenario_params = self.SCENARIOS[self.scenario]
@@ -248,13 +249,28 @@ class ThreGPP38901Model:
         if self.use_dem and terrain_heights is not None:
             if not self._dem_warning_emitted:
                 warnings.warn(
-                    "3GPP terrain correction mode is an approximate DEM-based adjustment, not full deterministic ray-tracing.",
+                    "3GPP terrain correction mode uses an ITU-R P.526 knife-edge effective profile approximation.",
                     UserWarning
                 )
                 self._dem_warning_emitted = True
             terrain_heights = self.xp.asarray(terrain_heights)
+
+            if terrain_heights.shape != distances_m.shape:
+                raise ValueError(
+                    f"terrain_heights shape {terrain_heights.shape} does not match distances shape {distances_m.shape}"
+                )
+
+            if self.xp.any(~self.xp.isfinite(terrain_heights)):
+                raise ValueError("terrain_heights contains non-finite values")
+
             diffraction_correction = self._apply_terrain_correction(
-                distances_m, f_ghz, terrain_heights, h_bs, h_ue
+                distances_m,
+                f_ghz,
+                terrain_heights,
+                h_bs,
+                h_ue,
+                los_prob,
+                kwargs.get('tx_elevation', None),
             )
             path_loss = path_loss + diffraction_correction
 
@@ -335,46 +351,89 @@ class ThreGPP38901Model:
         f_ghz: float,
         terrain_heights: np.ndarray,
         h_bs: float,
-        h_ue: float
+        h_ue: float,
+        los_prob: np.ndarray,
+        tx_elevation: Optional[float] = None,
     ) -> np.ndarray:
         """
-        Apply terrain-based diffraction correction (approximate mode).
+        Apply terrain diffraction correction using ITU-R P.526 knife-edge approximation.
 
-        Uses a simplified Fresnel-inspired heuristic to estimate additional loss.
-        This is intentionally lightweight and does not reconstruct full path profiles.
+        The implementation uses an effective profile sampled along the TX-RX line over the
+        available DEM grid. It is not full deterministic ray tracing but keeps physical
+        consistency with the knife-edge v-parameter and diffraction loss equations.
         """
-        # Initialize correction as zeros
         correction = self.xp.zeros_like(distances_m, dtype=float)
 
         if terrain_heights.size == 0:
             warnings.warn("Terrain heights array is empty, skipping terrain correction")
             return correction
 
-        # Calculate wavelength in meters
-        wavelength = 3e8 / (f_ghz * 1e9)  # speed of light / frequency
+        if terrain_heights.ndim != 2 or distances_m.ndim != 2:
+            warnings.warn("Terrain correction requires 2D grid arrays, skipping correction")
+            return correction
 
-        # For simplified implementation: assume max terrain elevation as obstruction
-        # Real implementation would do full LOS path profiling
-        max_terrain_height = self.xp.max(terrain_heights)
+        samples = max(self.dem_profile_samples, 4)
+        rows, cols = terrain_heights.shape
+        total_points = rows * cols
+        if total_points == 0:
+            return correction
 
-        # Effective TX height AGL
-        h_tx_agl = h_bs + max_terrain_height
+        tx_flat_idx = int(self.xp.argmin(distances_m))
+        tx_row = tx_flat_idx // cols
+        tx_col = tx_flat_idx % cols
 
-        # Fresnel radius at distance d
-        # r_fresnel = sqrt(wavelength * d1 * d2 / (d1 + d2))
-        # For symmetric case: r_fresnel ≈ sqrt(wavelength * d / 4)
-        fresnel_radius = self.xp.sqrt(wavelength * distances_m / 4.0)
+        t = self.xp.linspace(0.0, 1.0, samples)
 
-        # Simplified: if terrain blocks significant portion of first Fresnel zone
-        # Apply diffraction loss (typical 1-5 dB depending on obstruction)
-        # More sophisticated: calculate exact knife-edge diffraction per point
+        row_idx = self.xp.arange(rows).reshape(rows, 1)
+        col_idx = self.xp.arange(cols).reshape(1, cols)
 
-        # Placeholder: apply modest correction when terrain is present
-        terrain_present = self.xp.asarray(terrain_heights > 0, dtype=float)
-        if self.xp.any(terrain_present):
-            # Diffraction loss increases with frequency and decreases with distance
-            diffraction_factor = 1.0 + (f_ghz / 28.0) * (1000.0 / (distances_m + 1e-6))
-            correction = self.xp.minimum(5.0 * diffraction_factor, 15.0)
+        sample_rows = self.xp.rint(
+            tx_row + t[:, None, None] * (row_idx[None, :, :] - tx_row)
+        ).astype(np.int64)
+        sample_cols = self.xp.rint(
+            tx_col + t[:, None, None] * (col_idx[None, :, :] - tx_col)
+        ).astype(np.int64)
+
+        sample_rows = self.xp.clip(sample_rows, 0, rows - 1)
+        sample_cols = self.xp.clip(sample_cols, 0, cols - 1)
+
+        terrain_profile = terrain_heights[sample_rows, sample_cols]
+
+        tx_ground = float(terrain_heights[tx_row, tx_col]) if tx_elevation is None else float(tx_elevation)
+        tx_abs_height = tx_ground + h_bs
+        rx_abs_height = terrain_heights + h_ue
+        los_line = tx_abs_height + t[:, None, None] * (rx_abs_height[None, :, :] - tx_abs_height)
+
+        # Positive clearance means obstruction above LOS, candidate for diffraction.
+        clearance = terrain_profile - los_line
+        clearance[0, :, :] = -1e9
+        clearance[-1, :, :] = -1e9
+
+        max_idx = self.xp.argmax(clearance, axis=0)
+        h_obs = self.xp.max(clearance, axis=0)
+
+        t_obs = self.xp.take(t, max_idx)
+
+        wavelength_m = 3e8 / (f_ghz * 1e9)
+        d = self.xp.maximum(distances_m, 1.0)
+        d1 = self.xp.maximum(t_obs * d, 1.0)
+        d2 = self.xp.maximum((1.0 - t_obs) * d, 1.0)
+
+        # ITU-R P.526 single knife-edge diffraction parameter.
+        v = h_obs * self.xp.sqrt((2.0 * (d1 + d2)) / (wavelength_m * d1 * d2))
+
+        knife_loss = self.xp.where(
+            v <= -0.78,
+            0.0,
+            6.9 + 20.0 * self.xp.log10(self.xp.sqrt((v - 0.1) ** 2 + 1.0) + v - 0.1)
+        )
+
+        knife_loss = self.xp.maximum(knife_loss, 0.0)
+        knife_loss = self.xp.minimum(knife_loss, self.max_terrain_correction_db)
+
+        # Couple deterministic terrain blocking with stochastic LOS/NLOS blend.
+        nlos_weight = self.xp.clip(1.0 - los_prob, 0.0, 1.0)
+        correction = knife_loss * nlos_weight
 
         return correction
 

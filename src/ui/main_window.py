@@ -671,6 +671,10 @@ class MainWindow(QMainWindow):
         
         if dialog.exec():
             self.logger.info("Starting simulation...")
+
+            # Reemplazo limpio al relanzar: eliminar overlays previos antes de la nueva corrida.
+            self.map_widget.clear_coverage_layers()
+
             self.simulation_running = True
             self.status_label.setText("Ejecutando simulación...")
             self.progress_bar.setVisible(True)

@@ -459,6 +459,101 @@ class TestThreGPP38901GPUConsistency(unittest.TestCase):
             print(f"[OK] Large grid consistency: max diff = {max_diff:.2e} dB")
 
 
+class TestThreGPP38901TerrainCorrection(unittest.TestCase):
+    """Test ITU-R P.526 effective knife-edge terrain correction mode."""
+
+    @staticmethod
+    def _build_distance_grid(size=41, spacing_m=50.0):
+        center = size // 2
+        yy, xx = np.indices((size, size))
+        return np.sqrt((yy - center) ** 2 + (xx - center) ** 2) * spacing_m
+
+    def test_terrain_shape_mismatch_raises(self):
+        """Test: terrain_heights debe tener misma forma que distances"""
+        print("Test: Terrain shape mismatch raises ValueError...")
+        model = ThreGPP38901Model({'scenario': 'UMa', 'use_dem': True})
+        distances = np.ones((8, 8)) * 500.0
+        terrain = np.ones((7, 8)) * 100.0
+
+        with self.assertRaises(ValueError):
+            model.calculate_path_loss(
+                distances=distances,
+                frequency=3500,
+                terrain_heights=terrain,
+                tx_height=25.0,
+                tx_elevation=100.0,
+            )
+        print("[OK] Shape validation working")
+
+    def test_flat_terrain_has_negligible_correction(self):
+        """Test: terreno plano no introduce difracción significativa"""
+        print("Test: Flat terrain produces near-zero correction...")
+        distances = self._build_distance_grid(size=41, spacing_m=50.0)
+        terrain = np.ones_like(distances) * 100.0
+
+        model_prob = ThreGPP38901Model({'scenario': 'UMa', 'use_dem': False})
+        model_dem = ThreGPP38901Model({'scenario': 'UMa', 'use_dem': True, 'dem_profile_samples': 16})
+
+        pl_prob = model_prob.calculate_path_loss(
+            distances=distances,
+            frequency=3500,
+            tx_height=25.0,
+            terrain_heights=terrain,
+            tx_elevation=100.0,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            pl_dem = model_dem.calculate_path_loss(
+                distances=distances,
+                frequency=3500,
+                tx_height=25.0,
+                terrain_heights=terrain,
+                tx_elevation=100.0,
+            )
+
+        diff = pl_dem - pl_prob
+        self.assertLess(float(np.max(diff)), 0.25)
+        self.assertGreaterEqual(float(np.min(diff)), -1e-6)
+        print(f"[OK] Flat terrain correction max={np.max(diff):.4f} dB")
+
+    def test_ridge_obstruction_increases_path_loss(self):
+        """Test: una cresta entre TX y RX incrementa pérdida por difracción"""
+        print("Test: Ridge obstruction increases path loss...")
+        distances = self._build_distance_grid(size=61, spacing_m=40.0)
+        terrain = np.ones_like(distances) * 100.0
+
+        center = terrain.shape[0] // 2
+        ridge_row = center + 6
+        terrain[ridge_row:ridge_row + 2, :] = 220.0
+
+        model_prob = ThreGPP38901Model({'scenario': 'UMa', 'use_dem': False})
+        model_dem = ThreGPP38901Model({'scenario': 'UMa', 'use_dem': True, 'dem_profile_samples': 20})
+
+        pl_prob = model_prob.calculate_path_loss(
+            distances=distances,
+            frequency=3500,
+            tx_height=25.0,
+            terrain_heights=terrain,
+            tx_elevation=100.0,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            pl_dem = model_dem.calculate_path_loss(
+                distances=distances,
+                frequency=3500,
+                tx_height=25.0,
+                terrain_heights=terrain,
+                tx_elevation=100.0,
+            )
+
+        correction = pl_dem - pl_prob
+        far_side = correction[ridge_row + 2:, :]
+        self.assertGreater(float(np.mean(far_side)), 0.5)
+        self.assertGreater(float(np.max(correction)), 2.0)
+        self.assertLessEqual(float(np.max(correction)), model_dem.max_terrain_correction_db + 1e-6)
+        print(f"[OK] Ridge correction mean_far={np.mean(far_side):.3f} dB max={np.max(correction):.3f} dB")
+
+
 class TestThreGPP38901StandaloneFunction(unittest.TestCase):
     """Test standalone convenience function."""
 

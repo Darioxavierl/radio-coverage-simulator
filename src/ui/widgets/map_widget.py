@@ -288,6 +288,12 @@ class MapWidget(QWidget):
         // Agregar capa de cobertura
         function addCoverageLayer(antennaId, imageUrl, latMin, lonMin, latMax, lonMax) {
             console.log('Adding coverage layer for:', antennaId);
+
+            // Reemplazo limpio: si ya existe una capa con este id, removerla primero.
+            if (coverageLayers[antennaId]) {
+                map.removeLayer(coverageLayers[antennaId]);
+                delete coverageLayers[antennaId];
+            }
             
             // Bounds del overlay
             var bounds = [[latMin, lonMin], [latMax, lonMax]];

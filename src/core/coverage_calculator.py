@@ -81,11 +81,8 @@ class CoverageCalculator:
         # RSRP = Tx Power + Antenna Gain - Path Loss
         rsrp = antenna.tx_power_dbm + antenna_gain - path_loss
 
-        # Convertir de vuelta a CPU si es necesario
-        if self.engine.use_gpu:
-            rsrp = self.xp.asnumpy(rsrp)
-            path_loss = self.xp.asnumpy(path_loss)
-            antenna_gain = self.xp.asnumpy(antenna_gain)
+        # OPTIMIZACION: Mantener en GPU si use_gpu=True (conversión al final en multi-antenna)
+        # No conversión aquí
 
         if return_details:
             return {
@@ -136,17 +133,30 @@ class CoverageCalculator:
 
         # Calcular best server (máximo RSRP en cada píxel)
         if results['individual']:
-            coverage_stack = np.stack(list(results['individual'].values()))
+            coverage_stack = self.xp.stack(list(results['individual'].values()))  # CAMBIO: np.stack -> self.xp.stack
             antenna_ids = list(results['individual'].keys())
 
-            best_indices = np.argmax(coverage_stack, axis=0)
-            results['rsrp'] = np.max(coverage_stack, axis=0)
+            best_indices = self.xp.argmax(coverage_stack, axis=0)  # CAMBIO: np.argmax -> self.xp.argmax
+            results['rsrp'] = self.xp.max(coverage_stack, axis=0)  # CAMBIO: np.max -> self.xp.max
 
-            # Crear mapa de best server
-            results['best_server'] = np.empty(best_indices.shape, dtype=object)
+            # Crear mapa de best server (siempre NumPy, dtype=object no soportado en GPU)
+            if self.engine.use_gpu:
+                best_indices_numpy = self.xp.asnumpy(best_indices)
+            else:
+                best_indices_numpy = best_indices
+                
+            results['best_server'] = np.empty(best_indices_numpy.shape, dtype=object)
             for i, ant_id in enumerate(antenna_ids):
-                mask = best_indices == i
+                mask = best_indices_numpy == i
                 results['best_server'][mask] = ant_id
+        
+        # OPTIMIZACION: Convertir a CPU solo aquí, antes del return (una sola vez)
+        if self.engine.use_gpu:
+            if results['individual']:
+                results['rsrp'] = self.xp.asnumpy(results['rsrp'])
+                # best_server ya es NumPy (creado así porque dtype=object no se soporta en GPU)
+            for antenna_id in results['individual'].keys():
+                results['individual'][antenna_id] = self.xp.asnumpy(results['individual'][antenna_id])
 
         return results
     
