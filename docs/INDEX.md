@@ -43,7 +43,7 @@ Este documento sirve como índice maestro para la documentación técnica del si
 - [03A_OKUMURA_HATA.md](03A_OKUMURA_HATA.md): Modelo Okumura-Hata.
 - [03B_COST231.md](03B_COST231.md): Modelo COST-231.
 - [03C_ITU_R_P1546.md](03C_ITU_R_P1546.md): Modelo ITU-R P.1546.
-- [03D_3GPP_38901.md](03D_3GPP_38901.md): Modelo 3GPP TR 38.901.
+- [03D_3GPP_38901.md](03D_3GPP_38901.md): Modelo 3GPP TR 38.901 (incluye Modo 2 con difracción ITU-R P.526 knife-edge efectiva sobre DEM).
 - [03E_FREE_SPACE.md](03E_FREE_SPACE.md): Modelo Free Space.
 
 ---
@@ -97,7 +97,7 @@ Este documento sirve como índice maestro para la documentación técnica del si
   - GeoTIFF (raster georeferenciado)
   - Metadata JSON
   - Validaciones y timing
-- [05_VALIDACION.md](05_VALIDACION.md): Validación, pruebas, cobertura.
+- [05_VALIDACION.md](05_VALIDACION.md): Validación, pruebas, cobertura (incluye matriz específica para 3GPP Modo 2 con terreno).
 
 ---
 
@@ -109,6 +109,7 @@ Este documento sirve como índice maestro para la documentación técnica del si
   - Validaciones de raster
   - Integración con CoverageCalculator
   - Caché de alturas
+  - Integración con 3GPP Modo 2 (ITU-R P.526 knife-edge)
 
 ---
 

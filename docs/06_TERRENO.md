@@ -539,6 +539,39 @@ def get_heights_fast(self, lats_2d, lons_2d) -> np.ndarray:
     return heights
 ```
 
+## 10. Integración Específica con 3GPP TR 38.901 (Modo 2)
+
+El modelo 3GPP tiene dos modos:
+- Modo 1 (`use_dem=False`): probabilístico puro (sin corrección DEM).
+- Modo 2 (`use_dem=True`): probabilístico + corrección por difracción de terreno.
+
+Desde la implementación 2026-05-09, el Modo 2 usa difracción **ITU-R P.526 knife-edge** con perfil efectivo muestreado sobre el grid DEM.
+
+Flujo:
+1. `TerrainLoader.get_elevations_fast()` genera `terrain_heights` sobre la malla.
+2. `SimulationWorker` calcula `tx_elevation` en la posición de la antena.
+3. `CoverageCalculator` pasa ambos al modelo 3GPP:
+   - `terrain_heights`
+   - `tx_elevation`
+4. El modelo calcula una pérdida adicional `Ld` por píxel con P.526 y la pondera con `(1 - P_LOS)`.
+
+Ecuaciones clave usadas en el modelo 3GPP:
+
+$$v = h \sqrt{\frac{2(d_1 + d_2)}{\lambda d_1 d_2}}$$
+
+$$L_d(v) =
+\begin{cases}
+0, & v \le -0.78 \\
+6.9 + 20\log_{10}\left(\sqrt{(v-0.1)^2 + 1} + v - 0.1\right), & v > -0.78
+\end{cases}$$
+
+$$\Delta PL_{terrain} = L_d \cdot (1 - P_{LOS})$$
+
+Notas de implementación:
+- El perfil es efectivo/vectorizado (no ray-tracing completo), para mantener rendimiento en CPU/GPU.
+- `dem_profile_samples` controla precisión vs costo computacional.
+- `max_terrain_correction_db` limita valores extremos numéricos.
+
 ---
 
 **Ver también**: [02_CORE_COMPUTE.md](02_CORE_COMPUTE.md), [09_PIPELINE_SIMULACION_FLUJO.md](09_PIPELINE_SIMULACION_FLUJO.md)
