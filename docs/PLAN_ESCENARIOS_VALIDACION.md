@@ -1,13 +1,36 @@
-# Plan de Escenarios de Validacion
+# Plan de Escenarios de Validacion (REVISADO)
 ## Comparacion de mapas de calor con Atoll y benchmarking de aceleracion GPU
 
+**Version:** 2.0 Revisada  
+**Fecha:** 2026-05-11  
+**Estado:** ✅ Ajustado a limites REALES del programa (resolucion max 500, puntos max 250,000)
+
+---
+
 ## 1. Objetivo
-Definir un conjunto de escenarios reproducibles para:
+Definir un conjunto de escenarios reproducibles y ejecutables para:
 1. Validar resultados de cobertura frente a Atoll.
 2. Medir aceleracion CPU vs GPU por etapa y en tiempo total.
 3. Obtener evidencia defendible para tesis con criterios cuantitativos.
 
-## 2. Principios de comparabilidad con Atoll
+---
+
+## 2. LIMITES DEL PROGRAMA CONFIRMADOS
+
+**Limites de ejecucion:**
+- **Resolucion maxima**: 500 (grid 500×500 = 250,000 puntos)
+- **Puntos totales capados**: 250,000 máximo (500 × 500)
+- **Radio**: sin limite explicito, pero 5-10 km es operativamente razonable
+- **Antenas por escenario**: recomendacion practica: max 9-10 para rendimiento
+
+**Implicaciones criticas:**
+- Escenarios G3 debe usar resolucion 500 (maximo)
+- Escenarios multiantena: balancear numero de antenas vs resolucion
+- Para estrés (G5 con 9 antenas): usar resolucion 300 para tiempo operativo
+
+---
+
+## 3. Principios de comparabilidad con Atoll
 1. Usar exactamente el mismo DEM y mismo sistema de coordenadas.
 2. Igualar parametros radio: frecuencia, potencia, altura, ganancia, azimut, beamwidth.
 3. Igualar modelo de propagacion y sus parametros dentro de lo posible.
@@ -16,7 +39,9 @@ Definir un conjunto de escenarios reproducibles para:
 6. Congelar version de configuracion y registrar todo en metadata exportada.
 7. Ejecutar cada escenario al menos 5 veces para separar variacion numerica de variacion operacional.
 
-## 3. Metricas de validacion contra Atoll
+---
+
+## 4. Metricas de validacion contra Atoll
 Usar estas metricas en cada escenario:
 
 | Metrica | Descripcion | Criterio recomendado |
@@ -25,11 +50,13 @@ Usar estas metricas en cada escenario:
 | RMSE dB | Error cuadratico medio de RSRP punto a punto | <= 8 dB |
 | Bias dB | Promedio RF Tool - Atoll | entre -3 y +3 dB |
 | Correlacion Pearson | Similitud espacial de patrones | >= 0.85 |
-| Delta area cobertura | Diferencia en porcentaje de area sobre umbral (ej. -95 dBm) | <= 10% |
+| Delta area cobertura | Diferencia % de area sobre umbral (ej. -95 dBm) | <= 10% |
 
-Nota: Los umbrales pueden ajustarse por entorno. En urbano denso puedes aceptar RMSE algo mayor que en escenario simple.
+**Nota:** Umbrales ajustables por entorno. En urbano denso aceptar RMSE mayor que en escenario simple.
 
-## 4. Protocolo de ejecucion para comparacion con Atoll
+---
+
+## 5. Protocolo de ejecucion para comparacion con Atoll
 1. Preparar plantilla base de parametros.
 2. Ejecutar escenario en RF Coverage Tool.
 3. Exportar CSV y metadata JSON.
@@ -39,15 +66,16 @@ Nota: Los umbrales pueden ajustarse por entorno. En urbano denso puedes aceptar 
 7. Calcular metricas MAE, RMSE, Bias, correlacion y area por umbral.
 8. Documentar resultados y observaciones.
 
-## 5. Escenarios de comparacion de mapas de calor (RF Tool vs Atoll)
+---
+
+## 6. Escenarios de comparacion de mapas de calor (RF Tool vs Atoll)
 
 ### Escenario A1: Baseline monocelda omnidireccional
-Razon: Caso minimo para validar consistencia global del modelo y pipeline sin complejidad de sectorizacion.
+**Razon:** Caso minimo para validar consistencia global del modelo y pipeline sin complejidad de sectorizacion.
 
 | Parametro | Configuracion |
 |---|---|
 | Numero de antenas | 1 |
-| Geometria | Antena unica en zona central del ROI |
 | Tipo de antena | Omnidireccional |
 | Frecuencia | 900 MHz |
 | Potencia Tx | 43 dBm |
@@ -56,15 +84,15 @@ Razon: Caso minimo para validar consistencia global del modelo y pipeline sin co
 | Modelo | Okumura-Hata |
 | Entorno | Urban |
 | Radio | 5 km |
-| Resolucion | 300 |
+| **Resolucion** | **300** |
+| **Puntos totales** | **90,000** |---
 
 ### Escenario A2: Monocelda urbana COST-231
-Razon: Validar sensibilidad a parametros urbanos explicitos y coherencia de gradiente radial en urbano denso.
+**Razon:** Validar sensibilidad a parametros urbanos explicitos y coherencia de gradiente radial en urbano denso.
 
 | Parametro | Configuracion |
 |---|---|
 | Numero de antenas | 1 |
-| Geometria | Antena central |
 | Tipo de antena | Omnidireccional |
 | Frecuencia | 1800 MHz |
 | Potencia Tx | 43 dBm |
@@ -76,15 +104,15 @@ Razon: Validar sensibilidad a parametros urbanos explicitos y coherencia de grad
 | Street width | 15 m |
 | Street orientation | 30 grados |
 | Radio | 4 km |
-| Resolucion | 400 |
+| **Resolucion** | **350** |
+| **Puntos totales** | **122,500** |---
 
 ### Escenario A3: Tricelda sectorizada
-Razon: Validar forma lobular, orientacion de sectores y zonas de solape.
+**Razon:** Validar forma lobular, orientacion de sectores y zonas de solape.
 
 | Parametro | Configuracion |
 |---|---|
 | Numero de antenas | 3 |
-| Geometria | Co-sitio con separacion angular |
 | Tipo de antena | Direccional |
 | Frecuencia | 1800 MHz |
 | Potencia Tx por sector | 40 dBm |
@@ -97,29 +125,30 @@ Razon: Validar forma lobular, orientacion de sectores y zonas de solape.
 | Building height | 18 m |
 | Street width | 12 m |
 | Radio | 4 km |
-| Resolucion | 400 |
+| **Resolucion** | **350** |
+| **Puntos totales** | **122,500** |---
 
 ### Escenario A4: Red de 5 sitios direccionales
-Razon: Aproximar planificacion real, validar patron agregado multi-sitio y best-server espacial.
+**Razon:** Aproximar planificacion real, validar patron agregado multi-sitio y best-server espacial.
 
 | Parametro | Configuracion |
 |---|---|
-| Numero de antenas | 5 sitios, 1 sector por sitio o 5 sectores independientes |
-| Geometria | Distribucion en cruz o anillo irregular |
+| Numero de antenas | 5 sitios, 1 sector por sitio |
 | Tipo de antena | Direccional |
 | Frecuencia | 2100 MHz |
 | Potencia Tx | 40 dBm |
 | Altura Tx | 25 m AGL |
 | Ganancia antena | 17 dBi |
-| Azimut | Apuntando hacia zona de demanda y con solape moderado |
+| Azimut | Apuntando hacia zona de demanda con solape moderado |
 | Beamwidth | 65 a 90 grados |
 | Modelo | COST-231 |
 | Entorno | Urban/Suburban segun zona |
-| Radio | 6 km |
-| Resolucion | 500 |
+| Radio | 5 km |
+| **Resolucion** | **350** |
+| **Puntos totales** | **122,500** |---
 
 ### Escenario A5: Macro rural largo alcance
-Razon: Validar comportamiento de cobertura extendida en entorno menos obstruido.
+**Razon:** Validar comportamiento de cobertura extendida en entorno menos obstruido.
 
 | Parametro | Configuracion |
 |---|---|
@@ -132,11 +161,12 @@ Razon: Validar comportamiento de cobertura extendida en entorno menos obstruido.
 | Modelo | ITU-R P.1546 |
 | Entorno | Rural |
 | Terrain type | Mixed |
-| Radio | 10 km |
-| Resolucion | 300 |
+| Radio | 8 km |
+| **Resolucion** | **300** |
+| **Puntos totales** | **90,000** |---
 
 ### Escenario A6: Urbano 5G con 3GPP
-Razon: Validar comportamiento probabilistico LOS/NLOS y robustez frente a alta frecuencia.
+**Razon:** Validar comportamiento probabilistico LOS/NLOS y robustez frente a alta frecuencia.
 
 | Parametro | Configuracion |
 |---|---|
@@ -150,20 +180,24 @@ Razon: Validar comportamiento probabilistico LOS/NLOS y robustez frente a alta f
 | Escenario | UMa |
 | Uso de DEM | Activado |
 | Radio | 3 km |
-| Resolucion | 500 |
+| **Resolucion** | **300** |
+| **Puntos totales** | **90,000** |---
 
 ### Escenario A7: Sensibilidad de terreno
-Razon: Medir cuanto cambia la cobertura por DEM, util para explicar diferencias con Atoll.
+**Razon:** Medir cuanto cambia la cobertura por DEM, util para explicar diferencias con Atoll.
 
 | Parametro | Configuracion |
 |---|---|
 | Base | Repetir A2 o A6 |
-| Corrida 1 | Con DEM |
+| Corrida 1 | Con DEM real |
 | Corrida 2 | Terreno plano |
 | Comparacion | Delta de area por umbral y delta RMSE espacial |
+| **Resolucion** | **350** |
+
+---
 
 ### Escenario A8: Sensibilidad de orientacion en sectorial
-Razon: Verificar que el modelo responde de forma coherente a cambios de azimut.
+**Razon:** Verificar que el modelo responde de forma coherente a cambios de azimut.
 
 | Parametro | Configuracion |
 |---|---|
@@ -173,10 +207,13 @@ Razon: Verificar que el modelo responde de forma coherente a cambios de azimut.
 | Potencia Tx | 40 dBm |
 | Azimut | 0, 45, 90, 135 grados en corridas separadas |
 | Beamwidth | 65 grados |
-| Resto | Igual en todas las corridas |
+| Radio | 4 km |
+| **Resolucion** | **300** |
+| **Puntos totales** | **90,000** |
+| Resto | Igual en todas las corridas |---
 
-## 6. Escenarios de benchmark de aceleracion GPU
-Objetivo: separar aceleracion RF real de costos de render, agregacion y overhead.
+## 7. Escenarios de benchmark de aceleracion GPU
+**Objetivo:** Separar aceleracion RF real de costos de render, agregacion y overhead.
 
 ### Regla metodologica obligatoria
 1. Warm-up: 1 corrida de descarte por modo.
@@ -188,130 +225,199 @@ Objetivo: separar aceleracion RF real de costos de render, agregacion y overhead
    3. multi_antenna_aggregation_time_seconds
    4. total_execution_time_seconds
 
+---
+
 ### Escenario G1: Monocelda baja carga
-Razon: medir overhead base y detectar si GPU todavia no compensa en total.
+**Razon:** Medir overhead base y detectar si GPU todavia no compensa en total.
 
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
 | Modelo | COST-231 |
-| Resolucion | 200 |
-| Puntos | 40,000 |
-| Esperado | GPU puede empatar o perder en total; comparar RF puro |
+| **Resolucion** | **200** |
+| **Puntos** | **40,000** |
+| Radio | 4 km |
+| **Esperado** | GPU puede empatar o perder en total; comparar RF puro |
+
+---
 
 ### Escenario G2: Monocelda media carga
-Razon: identificar punto de cruce CPU-GPU.
+**Razon:** Identificar punto de cruce CPU-GPU.
 
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
 | Modelo | COST-231 |
-| Resolucion | 500 |
-| Puntos | 250,000 |
-| Esperado | GPU gana en antenna_coverage_times_seconds |
+| **Resolucion** | **350** |
+| **Puntos** | **122,500** |
+| Radio | 5 km |
+| **Esperado** | GPU gana en antenna_coverage_times_seconds |
 
-### Escenario G3: Monocelda alta carga
-Razon: maximizar calculo vectorial y observar escalamiento.
+---
+
+### Escenario G3: Monocelda alta carga (MAXIMO PROGRAMA)
+**Razon:** Maximizar calculo vectorial y observar escalamiento optimo.
 
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
 | Modelo | COST-231 o 3GPP |
-| Resolucion | 800 |
-| Puntos | 640,000 |
-| Esperado | ventaja clara de GPU en RF puro |
+| **Resolucion** | **500** |
+| **Puntos** | **250,000** |
+| Radio | 5 km |
+| **Esperado** | Ventaja clara de GPU en RF puro (~2-3x) |
+
+---
 
 ### Escenario G4: Multiantena 5 celdas
-Razon: amortizar warm-up y medir mejora acumulada.
+**Razon:** Amortizar warm-up y medir mejora acumulada.
 
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 5 direccionales |
 | Modelo | COST-231 |
-| Resolucion | 500 |
-| Puntos por antena | 250,000 |
-| Esperado | GPU gana en suma de coverage; render puede reducir ganancia total |
+| **Resolucion** | **300** |
+| **Puntos por grid** | **90,000** |
+| Radio | 5 km |
+| **Esperado** | GPU gana en suma de coverage; render puede reducir ganancia total |
 
-### Escenario G5: Multiantena 9 celdas
-Razon: prueba de estres realista de planificacion.
+---
+
+### Escenario G5: Multiantena 9 celdas (ESTRÉS)
+**Razon:** Prueba de estrés realista de planificacion.
 
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 9 direccionales |
 | Modelo | COST-231 |
-| Resolucion | 500 |
-| Esperado | aceleracion RF estable, observar impacto de agregacion |
+| **Resolucion** | **300** |
+| **Puntos por grid** | **90,000** |
+| Radio | 5 km |
+| **Esperado** | Aceleracion RF estable, observar impacto de agregacion |
+
+---
 
 ### Escenario G6: Impacto de modelo en rendimiento
-Razon: cuantificar si la ganancia GPU depende del modelo.
+**Razon:** Cuantificar si la ganancia GPU depende del modelo.
 
 | Parametro | Configuracion |
 |---|---|
-| Topologia | Misma de G4 |
+| Topologia | Misma de G4 (5 antenas) |
 | Modelos | Okumura-Hata, COST-231, ITU-R P.1546, 3GPP |
-| Resolucion | 500 |
-| Esperado | distinta ganancia por complejidad matematica del modelo |
+| **Resolucion** | **300** |
+| **Puntos** | **90,000** |
+| **Esperado** | Distinta ganancia por complejidad matematica del modelo |
+
+---
 
 ### Escenario G7: Efecto del render
-Razon: separar claramente calculo RF de visualizacion.
+**Razon:** Separar claramente calculo RF de visualizacion.
 
 | Parametro | Configuracion |
 |---|---|
-| Base | Repetir G4 |
+| Base | Repetir G4 (5 antenas) |
+| **Resolucion** | **300** |
 | Reporte | Coverage total, Render total, Total ejecucion |
-| Esperado | render puede dominar parte del tiempo total |
+| **Esperado** | Render puede dominar parte del tiempo total |---
 
-## 7. KPIs de rendimiento GPU
-Reportar por escenario:
+## 8. KPIs de rendimiento GPU
+**Reportar por escenario:**
 
-| KPI | Formula |
-|---|---|
-| Speedup RF | S_RF = Mediana(CPU cobertura) / Mediana(GPU cobertura) |
-| Speedup total | S_Total = Mediana(CPU total) / Mediana(GPU total) |
-| Peso render | P_Render = Render total / Total ejecucion |
-| Peso agregacion | P_Agg = Agregacion / Total ejecucion |
-| Estabilidad | Coeficiente de variacion por etapa |
+| KPI | Formula | Criterio orientativo |
+|---|---|---|
+| Speedup RF | S_RF = Mediana(CPU cobertura) / Mediana(GPU cobertura) | >= 1.3 en G2, G3 |
+| Speedup total | S_Total = Mediana(CPU total) / Mediana(GPU total) | >= 1.05 en multiantena |
+| Peso render | P_Render = Render total / Total ejecucion | <= 40% para ganancia neta |
+| Peso agregacion | P_Agg = Agregacion / Total ejecucion | <= 10% |
+| Estabilidad | Coef. variacion por etapa | < 10% en corridas repetidas |
 
-Criterios orientativos:
-1. S_RF > 1.5 en escenarios medios y altos.
-2. S_Total > 1.1 en multiantena media-alta.
-3. Variacion de tiempos por etapa menor a 10% en corridas repetidas.
+---
 
-## 8. Plantilla de registro por escenario
-Copiar esta tabla por cada escenario:
+## 9. Plantilla de registro por escenario
+**Copiar por cada escenario ejecutado:**
 
 | Campo | Valor |
 |---|---|
-| ID escenario | A1, A2, G4, etc. |
-| Objetivo | |
-| Fecha | |
-| Equipo | CPU, GPU, RAM, driver |
-| Modelo | |
-| Antenas | cantidad, tipo, azimut, beamwidth |
-| Potencia y frecuencia | |
-| Alturas | |
-| Terreno | DEM o plano |
-| Resolucion y radio | |
-| Corridas CPU | n |
-| Corridas GPU | n |
-| Warm-up aplicado | si/no |
-| MAE / RMSE / Bias / Corr | |
-| Speedup RF / Total | |
-| Observaciones | |
+| **ID escenario** | A1, A2, G4, etc. |
+| **Objetivo** | (Breve descripcion) |
+| **Fecha** | YYYY-MM-DD |
+| **Equipo** | CPU, GPU, RAM, driver CUDA |
+| **Modelo** | Propagacion, frecuencia, potencia |
+| **Antenas** | cantidad, tipo, azimut, beamwidth |
+| **Alturas** | Tx/BS/UE |
+| **Terreno** | DEM si/no, ruta |
+| **Resolucion y radio** | grilla, area |
+| **Corridas CPU** | n (incluyendo warm-up) |
+| **Corridas GPU** | n (incluyendo warm-up) |
+| **Warm-up descartado** | si/no |
+| **MAE / RMSE / Bias / Corr** | (Metricas Atoll si A-series) |
+| **Speedup RF / Total** | (KPIs GPU si G-series) |
+| **Observaciones** | Anomalias, notas importantes |
 
-## 9. Riesgos de comparacion y como mitigarlos
+---
+
+## 10. Riesgos de comparacion y como mitigarlos
 1. Diferencias por calibracion interna entre herramientas.
-Mitigacion: usar comparacion relativa y metricas espaciales, no solo valor puntual.
+   - Mitigacion: usar comparacion relativa y metricas espaciales, no solo valor puntual.
 2. Diferencia de resolucion o reproyeccion.
-Mitigacion: reamostrar a grilla comun y validar CRS.
+   - Mitigacion: reamostrar a grilla comun y validar CRS.
 3. Warm-up GPU distorsiona comparacion.
-Mitigacion: descartar primera corrida y usar mediana.
+   - Mitigacion: descartar primera corrida y usar mediana.
 4. Render influye en total.
-Mitigacion: reportar siempre por etapa, no solo tiempo global.
+   - Mitigacion: reportar siempre por etapa, no solo tiempo global.
+5. Terreno puede no estar disponible para Atoll.
+   - Mitigacion: ejecutar versiones plana y con DEM en ambos.
 
-## 10. Orden recomendado de ejecucion
-1. Ejecutar A1, A2 y A3 para calibracion inicial con Atoll.
-2. Ejecutar A4 y A6 para validacion operativa mas realista.
-3. Ejecutar G1 a G3 para curva carga vs aceleracion.
-4. Ejecutar G4 a G7 para validar ganancia en escenarios de red.
-5. Consolidar resultados en una matriz final de aceptacion.
+---
+
+## 11. Orden recomendado de ejecucion
+
+### Fase 1 (Calibracion): Escenarios A1, A2, A3
+- Objetivo: Calibracion inicial con Atoll
+- Entregable: Tabla comparativa MAE/RMSE
+
+### Fase 2 (Validacion operativa): Escenarios A4, A5, A6, A7
+- Objetivo: Escenarios realistas y sensibilidad
+- Entregable: Reporte de desviaciones por entorno
+
+### Fase 3 (Benchmarking carga): Escenarios G1, G2, G3
+- Objetivo: Curva carga vs aceleracion
+- Entregable: Grafico Speedup vs Puntos
+
+### Fase 4 (Benchmarking multiantena): Escenarios G4, G5, G6, G7, A8
+- Objetivo: Ganancia en redes reales
+- Entregable: Tabla KPIs y desglose render
+
+### Fase 5 (Consolidacion)
+- Matriz final de aceptacion
+- Redaccion de capitulo de validacion
+
+---
+
+## 12. Criterios de aprobacion por grupo
+
+### Grupo A (Comparacion Atoll) — APROBACION
+**Aprobado si:**
+- MAE promedio < 6 dB en >= 6/8 escenarios
+- Correlacion Pearson > 0.80 en >= 6/8 escenarios
+- Bias entre -3 y +3 dB en >= 6/8 escenarios
+- Delta area cobertura < 10% en >= 5/8 escenarios
+
+**Rechazo implica:**
+- Revisar calibracion de modelos
+- Comparar parametros exactamente con Atoll
+- Validar integridad de DEM
+- Ejecutar A7 (sensibilidad terreno) para diagnosticar
+
+### Grupo G (GPU Benchmarking) — APROBACION
+**Aprobado si:**
+- S_RF >= 1.3 en G2, G3, G4
+- S_Total >= 1.05 en multiantena (G4, G5)
+- Variacion de tiempos < 10% en corridas repetidas
+- Render + Agregacion <= 40% del total en G3
+
+**Rechazo implica:**
+- Revisar drivers CUDA y version CuPy
+- Confirmar GPU detectada correctamente
+- Ejecutar G1 para verificar overhead base
+- Considerar optimizacion de kernel o memoria
