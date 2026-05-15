@@ -5,13 +5,14 @@
 
 ---
 
-## 1. Resumen de los 5 Modelos Implementados
+## 1. Resumen de los 6 Modelos Implementados
 
 | Modelo | Clase | Archivo | Tipo |
 |--------|-------|---------|------|
 | Free Space | `FreeSpacePathLossModel` | `traditional/free_space.py` | Determinístico analítico |
 | Okumura-Hata | `OkumuraHataModel` | `traditional/okumura_hata.py` | Empírico estadístico |
 | COST-231 W-I | `COST231WalfischIkegamiModel` | `traditional/cost231.py` | Semi-determinístico |
+| **COST-231 Hata** | **`COST231HataModel`** | **`traditional/cost231_hata.py`** | **Empírico estadístico (4G LTE)** |
 | ITU-R P.1546 | `ITUR_P1546Model` | `traditional/itu_r_p1546.py` | Empírico punto-a-área |
 | 3GPP TR 38.901 | `ThreGPP38901Model` | `gpp_3gpp/three_gpp_38901.py` | Probabilístico estocástico |
 
@@ -19,17 +20,17 @@
 
 ## 2. Tabla Comparativa de Características Técnicas
 
-| Característica | Free Space | Okumura-Hata | COST-231 | ITU-R P.1546 | 3GPP 38.901 |
-|----------------|-----------|--------------|---------|-------------|-------------|
-| **Frecuencia** | Sin límite | 150–2000 MHz | 800–2000 MHz | 30–4000 MHz | 500–100000 MHz (0.5–100 GHz) |
-| **Distancia** | Sin límite | 1–20 km | 20 m–5 km | 1–1000 km | 10 m–10 km |
-| **Distinción LOS/NLOS** | No | No | Sí (heurístico) | Sí (radio horizon) | Sí (probabilístico) |
-| **Uso de DEM/terreno** | No | Sí (h_eff) | Sí (h_eff + LOS) | Sí (h_eff + 3 tipos) | Opcional (Fresnel aprox.) |
-| **Parámetros urbanos** | No | No | Sí (h_edif, w_calle, φ) | No | No |
-| **Escenarios** | Único | Urban/Suburban/Rural | Urban/Suburban/Rural | Urban/Suburban/Rural | UMa/UMi/RMa |
-| **Altura TX relevante** | No | Sí (30–200 m) | Sí (30–200 m) | Sí (10–3000 m) | Sí (por escenario) |
-| **Unidades distancia interna** | km | km | km | km | **metros** |
-| **Unidades frecuencia interna** | MHz | MHz | MHz | MHz | **GHz** (convierte de MHz) |
+| Característica | Free Space | Okumura-Hata | COST-231 W-I | **COST-231 Hata** | ITU-R P.1546 | 3GPP 38.901 |
+|----------------|-----------|--------------|---------|-----------|-------------|-------------|
+| **Frecuencia** | Sin límite | 150–2000 MHz | 800–2000 MHz | **1500–2000 MHz** | 30–4000 MHz | 500–100000 MHz (0.5–100 GHz) |
+| **Distancia** | Sin límite | 1–20 km | 20 m–5 km | **0.02–5 km** | 1–1000 km | 10 m–10 km |
+| **Distinción LOS/NLOS** | No | No | Sí (heurístico) | **No (estadístico)** | **No** (TCA continuo, no binario) | Sí (probabilístico) |
+| **Uso de DEM/terreno** | No | Sí (h_eff) | Sí (h_eff + LOS) | **Sí (h_eff + estadística)** | Sí (h_eff + 3 tipos) | Opcional (Fresnel aprox.) |
+| **Parámetros urbanos** | No | No | Sí (h_edif, w_calle, φ) | **Sí (C_m)** | No | No |
+| **Escenarios** | Único | Urban/Suburban/Rural | Urban/Suburban/Rural | **Urban (medium/large)** | Urban/Suburban/Rural | UMa/UMi/RMa |
+| **Altura TX relevante** | No | Sí (30–200 m) | Sí (30–200 m) | **Sí (30–200 m)** | Sí (10–3000 m) | Sí (por escenario) |
+| **Unidades distancia interna** | km | km | km | **km** | km | **metros** |
+| **Unidades frecuencia interna** | MHz | MHz | MHz | **MHz** | MHz | **GHz** (convierte de MHz) |
 
 ---
 
@@ -39,8 +40,9 @@
 |--------|-------------------|-----------------|
 | Free Space | $20\log(d_{km}) + 20\log(f_{MHz}) + 32.45$ | 32.45 dB (derivado de Friis) |
 | Okumura-Hata | $69.55 + 26.16\log(f) - 13.82\log(h_b) - a(h_m) + [44.9-6.55\log(h_b)]\log(d)$ | 69.55 dB |
-| COST-231 | $L_0 + L_{\text{rtd}} + L_{\text{msd}} + C_f$ | Lrtd con −16.9 dB |
-| ITU-R P.1546 | $L_0 + \Delta_h + \Delta_f + \Delta_{\text{env}}$ | k=4/3 para radio horizon |
+| COST-231 W-I | $L_0 + L_{\text{rtd}} + L_{\text{msd}} + C_f$ | Lrtd con −16.9 dB |
+| **COST-231 Hata** | **$46.3 + 33.9\log(f) - 13.82\log(h_b) - a(h_m) + [44.9-6.55\log(h_b)]\log(d) + C_m$** | **46.3 dB (vs 69.55 OH)** |
+| ITU-R P.1546 | $PL = 139.3 + 20\log(f) - E_{\text{ITU}}(f,d,h_{\text{eff}}) + \Delta_{\text{TCA}} + \Delta_{\text{clutter}}$ | 139.3 dB (conversión E→PL) |
 | 3GPP 38.901 | $P_{LOS}\cdot PL_{LOS} + (1-P_{LOS})\cdot PL_{NLOS}$ | C2=−0.6 dB/m h_ue |
 
 ---
@@ -56,10 +58,15 @@ Frecuencia de operación:
 ├─ 150–800 MHz (VHF/UHF bajo)
 │     → Okumura-Hata (preferred)
 │     → ITU-R P.1546 (alternativa)
-├─ 800–2000 MHz (GSM, LTE, WiFi)
+├─ 800–1500 MHz (GSM, WiFi)
 │     → Okumura-Hata (distancias > 1 km)
-│     → COST-231 (urban canyon, dist < 5 km)
+│     → COST-231 W-I (urban canyon, dist < 5 km)
 │     → ITU-R P.1546 (largo alcance > 20 km)
+├─ 1500–2000 MHz (4G LTE)
+│     → COST-231 Hata (recomendado para 4G urban)
+│     → Okumura-Hata (extrapolación válida)
+│     → ITU-R P.1546 (largo alcance)
+│     → 3GPP UMa/UMi (alternativa 5G-ready)
 ├─ 2000–4000 MHz (LTE-A, 5G sub-6)
 │     → ITU-R P.1546 (hasta 4 GHz)
 │     → 3GPP UMa/UMi (preferido para 5G)
@@ -84,8 +91,9 @@ Distancia a cubrir:
 | Entorno | Modelo Recomendado | Razón |
 |---------|-------------------|-------|
 | Urban macro celular (LTE/5G) | 3GPP UMa | Estándar de industria 5G |
-| Urban micro / small cells | 3GPP UMi | Antenas bajo nivel de techos |
-| Urban denso (calles, canyons) | COST-231 | Incorpora geometría de calles |
+| Urban macro (4G LTE clásico) | COST-231 Hata | Optimizado para 1500-2000 MHz |
+| Urban micro / small cells | 3GPP UMi o COST-231 Hata | Antenas bajo nivel de techos |
+| Urban denso (calles, canyons) | COST-231 W-I | Incorpora geometría de calles |
 | Rural/suburbano clásico | Okumura-Hata | Calibrado para estas condiciones |
 | Rural largo alcance / broadcast | ITU-R P.1546 | Diseñado para ello |
 | LOS ideal / microondas | Free Space | Único apropiado |
@@ -202,7 +210,7 @@ h_eff = self.xp.minimum(h_eff, h_max)   # clipping superior
 | Free Space | Ninguno | Asume siempre LOS perfecto |
 | Okumura-Hata | Ninguno | Pérdida mediana L₅₀ (ambas condiciones) |
 | COST-231 | Heurístico: `delta_h > 30 m` | LOS uniforme para toda la grilla |
-| ITU-R P.1546 | Radio horizon: `d ≤ 4.12·√(h_tx·h_rx)/100` | LOS/NLOS por punto |
+| ITU-R P.1546 | TCA continuo: `ΔE = f(arctan(z_rel/d))` | Corrección gradual por punto |
 | 3GPP 38.901 | Probabilístico: `P_LOS(d) = min(C1/d,1)·(1−e^{−d/C2}) + e^{−d/C2}` | Interpolación continua |
 
 **Detalle de cada criterio:**
@@ -213,11 +221,24 @@ delta_h = (tx_height + tx_elevation) - mean(terrain_heights)
 los_mask[:] = (delta_h > 30.0)   # toda la grilla con mismo estado
 ```
 
-### P.1546 — Radio Horizon
+### P.1546 — TCA Continuo (sin LOS/NLOS binario)
+
+P.1546 **no** implementa LOS/NLOS binario (`has_los_nlos = False`). En su lugar
+aplicar una corrección continua de Terrain Clearance Angle (§4.5):
+
 ```python
-d_ho = 4.12 * sqrt(h_tx * h_rx) / 100   # km
-is_los = (distances_km <= d_ho)          # por punto
+# TCA = ángulo máximo de elevación del terreno visto desde TX
+angles_deg = np.degrees(np.arctan2(z_relative, distances_km))
+tca_deg = np.max(angles_deg, axis=1)
+
+# Corrección continua (0 dB a −5 dB)
+correction = np.where(tca_deg < -2, 0,
+               np.where(tca_deg > 2, -5,
+                 -2.5 * (tca_deg + 2) / 4))
 ```
+
+Existe `_calculate_radio_horizon(h_tx, h_rx)` = `4.12 * (sqrt(h_tx) + sqrt(h_rx))` km,
+pero es un método **informativo** que **no se invoca** en `calculate_path_loss`.
 
 ### 3GPP — Probabilístico
 ```python
@@ -285,10 +306,11 @@ CoverageCalculator._calculate_path_loss()
     │    └─ PL = L0 + Lrtd + Lmsd[NLOS] + Cf
     │
     ├──► ITUR_P1546Model.calculate_path_loss()
-    │    ├─ h_eff = tx_height + tx_elev − mean(terrain)
-    │    ├─ d_ho = 4.12·√(h_tx·h_rx)/100
-    │    ├─ is_los = (d_km ≤ d_ho)
-    │    └─ PL = L0 + Δh + Δf + Δenv
+    │    ├─ h_eff = h_tx + z_tx − z_mean(3-15km)        [§4.3]
+    │    ├─ E = interpolar_3D(f, d, h_eff)              [tablas 100/600/2000 MHz]
+    │    ├─ TCA = max(arctan(z_rel/d))                  [§4.5 continuo]
+    │    ├─ ΔE = TCA_corr + clutter_P2108               [P.2108-1]
+    │    └─ PL = 139.3 + 20·log(f) − E + ΔE            [§8.1]
     │
     └──► ThreGPP38901Model.calculate_path_loss()
          ├─ f_ghz = frequency / 1000
@@ -309,11 +331,11 @@ rsrp = P_tx + G_tx − path_loss   [dBm]
 
 | Documento | Modelo | Contenido |
 |-----------|--------|-----------|
-| [03A_OKUMURA_HATA_v2.md](03A_OKUMURA_HATA_v2.md) | Okumura-Hata | 7 ecuaciones, a(hm), Urban/Suburban/Rural, COST-231 ext. |
-| [03B_COST231_v2.md](03B_COST231_v2.md) | COST-231 | L0, Lrtd, Lori, Lmsd, Cf, LOS/NLOS, geometría urban canyon |
-| [03C_ITU_R_P1546_v2.md](03C_ITU_R_P1546_v2.md) | ITU-R P.1546 | L0, Δh, Δf, Δenv, radio horizon, 3 tipos de terreno |
-| [03D_3GPP_38901_v2.md](03D_3GPP_38901_v2.md) | 3GPP TR 38.901 | P_LOS, PL_LOS, PL_NLOS, UMa/UMi/RMa, corrección Fresnel |
-| [03E_FREE_SPACE_v2.md](03E_FREE_SPACE_v2.md) | Free Space | Derivación 32.45, FSPL, tablas de referencia |
+| [03A_OKUMURA_HATA.md](03A_OKUMURA_HATA.md) | Okumura-Hata | 7 ecuaciones, a(hm), Urban/Suburban/Rural, COST-231 ext. |
+| [03B_COST231.md](03B_COST231.md) | COST-231 W-I | L0, Lrtd, Lori, Lmsd, Cf, LOS/NLOS, geometría urban canyon |
+| [03C_ITU_R_P1546.md](03C_ITU_R_P1546.md) | ITU-R P.1546 | pipeline 5 pasos: h_eff, tablas ITU, TCA §4.5, clutter P.2108-1, conversión E→PL |
+| [03D_3GPP_38901.md](03D_3GPP_38901.md) | 3GPP TR 38.901 | P_LOS, PL_LOS, PL_NLOS, UMa/UMi/RMa, corrección Fresnel |
+| [03E_FREE_SPACE.md](03E_FREE_SPACE.md) | Free Space | Derivación 32.45, FSPL, tablas de referencia |
 
 ---
 

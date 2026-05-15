@@ -293,5 +293,5 @@ rsrp = antenna.tx_power_dbm + antenna.tx_gain_dbi - path_loss
 
 **Ver también:**
 - [03_MODELOS_PROPAGACION.md](03_MODELOS_PROPAGACION.md) — comparativa general de modelos
-- [03A_OKUMURA_HATA_v2.md](03A_OKUMURA_HATA_v2.md) — primera mejora sobre FSPL para entornos reales
-- [03C_ITU_R_P1546_v2.md](03C_ITU_R_P1546_v2.md) — usa FSPL como L₀ baseline
+- [03A_OKUMURA_HATA.md](03A_OKUMURA_HATA.md) — primera mejora sobre FSPL para entornos reales
+- [03C_ITU_R_P1546.md](03C_ITU_R_P1546.md) — modelo punto-área empírico ITU (tablas, no usa FSPL como baseline)

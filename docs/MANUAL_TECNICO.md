@@ -299,7 +299,7 @@ rsrp_agregado = xp.max(rsrp_stack, axis=0)                    # (H, W)
 | Free Space | `FreeSpacePathLossModel` | Determinístico | Sin limite | Sin limite | Solo LOS | Solo LOS |
 | Okumura-Hata | `OkumuraHataModel` | Empírico | 150 – 2000 | 1 – 20 km | Urb/Sub/Rur | Promediado |
 | COST-231 W-I | `COST231WalfischIkegamiModel` | Semi-determ. | 800 – 2000 | 20 m – 5 km | Urbano | Heurístico |
-| ITU-R P.1546 | `ITUR_P1546Model` | Empírico pto-area | 30 – 4000 | 1 – 1000 km | Urb/Sub/Rur | Radio horizon |
+| ITU-R P.1546 | `ITUR_P1546Model` | Empírico pto-area | 30 – 4000 | 1 – 1000 km | Urb/Sub/Rur | TCA continuo (no binario) |
 | 3GPP TR 38.901 | `ThreGPP38901Model` | Probabilístico | 500 – 100000 | 10 m – 10 km | UMa/UMi/RMa | P_LOS(d) |
 
 ### 7.2 Ecuaciones clave por modelo
@@ -331,9 +331,17 @@ $$L_{total} = L_0 + L_{rtd} + L_{msd} + C_f$$
 
 $$L = L_0 + \Delta_h + \Delta_f + \Delta_{\text{env}}$$
 
-Donde $L_0$ es la perdida base de la curva estandar interpolada en frecuencia, distancia y altura efectiva TX. La distancia al radio horizon se calcula como:
+Donde $L_0$ es la perdida base de la curva estandar interpolada en frecuencia, distancia y altura efectiva TX. El calculo sigue un **pipeline de 5 pasos**:
 
-$$d_{hor} = 4.1\sqrt{h_{tx}} \quad \text{(km, antena en metros)}$$
+1. `h_eff = h_tx + z_tx - z_mean(3-15km)` — altura efectiva vectorizada (§4.3)
+2. `E = interpolar_3D(f, d, h_eff)` — intensidad de campo desde tablas 100/600/2000 MHz
+3. `TCA = max(arctan(z_rel/d))` — terrain clearance angle (§4.5, continuo, no binario)
+4. `ΔE = TCA_corr + clutter(P.2108-1)` — correcciones de ambiente
+5. `PL = 139.3 + 20·log(f) - E + ΔE` — conversion de campo a perdida
+
+> **Nota:** Existe `_calculate_radio_horizon(h_tx, h_rx) = 4.12*(sqrt(h_tx)+sqrt(h_rx))` km
+> como metodo informativo, pero **no se usa** en el calculo de path loss. El modelo
+> no implementa distincion LOS/NLOS binaria (`has_los_nlos = False`).
 
 #### 3GPP TR 38.901 (UMa)
 

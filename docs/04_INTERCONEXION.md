@@ -212,14 +212,14 @@ class SimulationWorker(QObject):
     # Signals
     started = pyqtSignal()
     progress = pyqtSignal(int)          # 0-100
-    results_ready = pyqtSignal(dict)
-    error_occurred = pyqtSignal(str)
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
     
     def run_simulation(self, project: Project, params: dict):
         """
         Entrada: proyecto completo + parámetros de simulación
         Proceso: Orquestar pipeline completo
-        Salida: Emitir results_ready.emit(results)
+        Salida: Emitir self.finished.emit(results)
         """
         
         self.started.emit()
@@ -328,24 +328,34 @@ class SimulationWorker(QObject):
                 'bounds': grid_info['bounds']
             }
             
-            # 8. Generar heatmap (imagen PNG base64)
+            # 8. Generar heatmap con rango dinámico (percentil 5/95, colormap jet)
             self.progress.emit(90)
             heatmap_gen = HeatmapGenerator()
-            image_url = heatmap_gen.generate_heatmap_dataurl(
-                rsrp_aggregated,
-                vmin=-150,
-                vmax=-40,
-                cmap='RdYlGn_r'
-            )
-            
-            results['aggregated']['image_url'] = image_url
+
             for ant_id, ant_data in results['individual'].items():
+                valid = ant_data['rsrp'][np.isfinite(ant_data['rsrp'])]
+                _vmin = max(float(np.percentile(valid, 5)), -120) if len(valid) > 0 else -120
+                _vmax = min(float(np.percentile(valid, 95)), -20) if len(valid) > 0 else -60
+                if _vmax - _vmin < 20:
+                    _vmin = _vmax - 20
                 results['individual'][ant_id]['image_url'] = \
-                    heatmap_gen.generate_heatmap_dataurl(
-                        ant_data['rsrp'],
-                        vmin=-150,
-                        vmax=-40
+                    heatmap_gen.generate_heatmap_image(
+                        ant_data['rsrp'], colormap='jet', vmin=_vmin, vmax=_vmax, alpha=0.6
                     )
+                results['individual'][ant_id]['rsrp_vmin'] = _vmin
+                results['individual'][ant_id]['rsrp_vmax'] = _vmax
+
+            agg_valid = rsrp_aggregated[np.isfinite(rsrp_aggregated)]
+            _agg_vmin = max(float(np.percentile(agg_valid, 5)), -120) if len(agg_valid) > 0 else -120
+            _agg_vmax = min(float(np.percentile(agg_valid, 95)), -20) if len(agg_valid) > 0 else -60
+            if _agg_vmax - _agg_vmin < 20:
+                _agg_vmin = _agg_vmax - 20
+            image_url = heatmap_gen.generate_heatmap_image(
+                rsrp_aggregated, colormap='jet', vmin=_agg_vmin, vmax=_agg_vmax, alpha=0.6
+            )
+            results['aggregated']['image_url'] = image_url
+            results['aggregated']['rsrp_vmin'] = _agg_vmin
+            results['aggregated']['rsrp_vmax'] = _agg_vmax
             
             # 9. Guardar metadata
             self.progress.emit(95)
@@ -364,11 +374,11 @@ class SimulationWorker(QObject):
             self.progress.emit(100)
             
             # 10. Emitir results (ThreadSafe)
-            self.results_ready.emit(results)
+            self.finished.emit(results)
             
         except Exception as e:
             self.logger.error(f"Simulation failed: {str(e)}")
-            self.error_occurred.emit(f"Error: {str(e)}")
+            self.error.emit(f"Error: {str(e)}")
 ```
 
 ### 4.4 Paso 4: MainWindow Recibe Resultados
@@ -387,13 +397,13 @@ class MainWindow(QMainWindow):
         self.simulation_worker.moveToThread(self.worker_thread)
         
         # Conectar signals
-        self.simulation_worker.results_ready.connect(
+        self.simulation_worker.finished.connect(
             self._on_simulation_finished
         )
         self.simulation_worker.progress.connect(
             self._on_simulation_progress
         )
-        self.simulation_worker.error_occurred.connect(
+        self.simulation_worker.error.connect(
             self._on_simulation_error
         )
     
@@ -413,6 +423,11 @@ class MainWindow(QMainWindow):
             lat_max=results['aggregated']['bounds']['lat_max'],
             lon_max=results['aggregated']['bounds']['lon_max']
         )
+        
+        # show_coverage() en MapWidget emite update_coverage_legend cuando los datos
+        # incluyen rsrp_vmin/rsrp_vmax, actualizando la leyenda Leaflet (bottomright):
+        #   self.bridge.update_coverage_legend.emit(float(vmin), float(vmax))
+        # Esto ocurre automáticamente dentro de MapWidget.show_coverage().
         
         # Mostrar estadísticas
         metadata = results['metadata']
@@ -547,22 +562,22 @@ def run_simulation(self, project, params):
         # ... simulación ...
     
     except FileNotFoundError as e:
-        self.error_occurred.emit(f"Terrain file not found: {str(e)}")
+        self.error.emit(f"Terrain file not found: {str(e)}")
     
     except ValueError as e:
-        self.error_occurred.emit(f"Invalid simulation parameters: {str(e)}")
+        self.error.emit(f"Invalid simulation parameters: {str(e)}")
     
     except RuntimeError as e:
         if "CUDA" in str(e):
-            self.error_occurred.emit(f"GPU error (fallback to CPU): {str(e)}")
+            self.error.emit(f"GPU error (fallback to CPU): {str(e)}")
             # Re-intentar con CPU
             compute_engine = ComputeEngine(use_gpu=False)
             # ...
         else:
-            self.error_occurred.emit(f"Runtime error: {str(e)}")
+            self.error.emit(f"Runtime error: {str(e)}")
     
     except Exception as e:
-        self.error_occurred.emit(f"Unexpected error: {str(e)}")
+        self.error.emit(f"Unexpected error: {str(e)}")
         self.logger.exception("Simulation failed")
 ```
 

@@ -41,14 +41,15 @@ Este documento sirve como índice maestro para la documentación técnica del si
 ## 📡 Fase 3: Modelos de Propagación
 - [03_MODELOS_PROPAGACION.md](03_MODELOS_PROPAGACION.md): Descripción general y fundamentos.
 - [03A_OKUMURA_HATA.md](03A_OKUMURA_HATA.md): Modelo Okumura-Hata.
-- [03B_COST231.md](03B_COST231.md): Modelo COST-231.
-- [03C_ITU_R_P1546.md](03C_ITU_R_P1546.md): Modelo ITU-R P.1546.
+- [03B_COST231.md](03B_COST231.md): Modelo COST-231 (Walfisch-Ikegami).
+- [03C_COST231_HATA.md](03C_COST231_HATA.md): Modelo COST-231 Hata (extensión para 4G LTE 1500-2000 MHz). **NUEVO**
+- [03C_ITU_R_P1546.md](03C_ITU_R_P1546.md): Modelo ITU-R P.1546-6 (30-4000 MHz, point-to-area, tabular empírico). **REFACTORIZADO - Arquitectura correcta implementada**
 - [03D_3GPP_38901.md](03D_3GPP_38901.md): Modelo 3GPP TR 38.901 (incluye Modo 2 con difracción ITU-R P.526 knife-edge efectiva sobre DEM).
 - [03E_FREE_SPACE.md](03E_FREE_SPACE.md): Modelo Free Space.
 
 ---
 
-## 🚀 Fase 4: Detección de GPU — **NUEVO**
+## �🚀 Fase 4: Detección de GPU — **NUEVO**
 - [08_GPU_DETECTOR.md](08_GPU_DETECTOR.md): **EXHAUSTIVO**
   - Detección automática de GPU (CuPy)
   - Fallback seguro a CPU

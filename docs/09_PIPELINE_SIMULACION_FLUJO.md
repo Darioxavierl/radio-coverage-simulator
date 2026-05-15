@@ -347,12 +347,20 @@ Resultados:
             #   'antenna_gain': (100, 100) ndarray,
             # }
             
-            # 3.3: Generar heatmap
+            # 3.3: Generar heatmap con rango dinámico (percentil 5/95)
+            valid_rsrp = coverage_details['rsrp'][np.isfinite(coverage_details['rsrp'])]
+            if len(valid_rsrp) > 0:
+                _vmin = max(float(np.percentile(valid_rsrp, 5)), -120)
+                _vmax = min(float(np.percentile(valid_rsrp, 95)), -20)
+                if _vmax - _vmin < 20:
+                    _vmin = _vmax - 20
+            else:
+                _vmin, _vmax = -120, -60
             heatmap_image = HeatmapGenerator.generate_heatmap_image(
                 coverage_details['rsrp'],
                 colormap='jet',
-                vmin=-120,  # dBm mínimo
-                vmax=-60,   # dBm máximo
+                vmin=_vmin,
+                vmax=_vmax,
                 alpha=0.6
             )
             # heatmap_image = "data:image/png;base64,iVBORw0KGgo..."
@@ -372,6 +380,8 @@ Resultados:
                     'tx_height_m': antenna.height_agl,
                 },
                 'image_url': heatmap_image,
+                'rsrp_vmin': _vmin,    # rango real usado en el colormap
+                'rsrp_vmax': _vmax,
                 'bounds': [
                     [float(grid_lats.min()), float(grid_lons.min())],
                     [float(grid_lats.max()), float(grid_lons.max())],
@@ -507,12 +517,20 @@ Mismo con CPU: ~5000 ms (6× más lento)
                 axis=0
             ).squeeze()
             
-            # 4.4: Generar heatmap agregado
+            # 4.4: Generar heatmap agregado con rango dinámico (percentil 5/95)
+            agg_valid = rsrp_agg[np.isfinite(rsrp_agg)]
+            if len(agg_valid) > 0:
+                _agg_vmin = max(float(np.percentile(agg_valid, 5)), -120)
+                _agg_vmax = min(float(np.percentile(agg_valid, 95)), -20)
+                if _agg_vmax - _agg_vmin < 20:
+                    _agg_vmin = _agg_vmax - 20
+            else:
+                _agg_vmin, _agg_vmax = -120, -60
             heatmap_agg = HeatmapGenerator.generate_heatmap_image(
                 rsrp_agg,
                 colormap='jet',
-                vmin=-120,
-                vmax=-60,
+                vmin=_agg_vmin,
+                vmax=_agg_vmax,
                 alpha=0.6
             )
             
@@ -525,6 +543,8 @@ Mismo con CPU: ~5000 ms (6× más lento)
                 'lats': grid_lats,
                 'lons': grid_lons,
                 'image_url': heatmap_agg,
+                'rsrp_vmin': _agg_vmin,    # rango real usado en el colormap
+                'rsrp_vmax': _agg_vmax,
                 'bounds': [
                     [float(grid_lats.min()), float(grid_lons.min())],
                     [float(grid_lats.max()), float(grid_lons.max())],
@@ -625,6 +645,8 @@ results = {
             'antenna_gain': (100, 100),
             'antenna': {name, id, freq, power, height},
             'image_url': "data:image/png;base64,...",
+            'rsrp_vmin': -95.3,   # percentil 5 real (dinámico)
+            'rsrp_vmax': -52.1,   # percentil 95 real (dinámico)
             'bounds': [[lat_min, lon_min], [lat_max, lon_max]],
         },
         'ant-002': {...},
@@ -638,6 +660,8 @@ results = {
         'lats': (100, 100),
         'lons': (100, 100),
         'image_url': "data:image/png;base64,...",
+        'rsrp_vmin': -97.1,   # percentil 5 real del agregado
+        'rsrp_vmax': -50.4,   # percentil 95 real del agregado
         'bounds': [[lat_min, lon_min], [lat_max, lon_max]],
     },
     'metadata': {

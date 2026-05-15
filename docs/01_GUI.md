@@ -77,6 +77,11 @@ class MapBridge(QObject):
     remove_coverage_layer = pyqtSignal(str)
     # Parámetro: antenna_id
     
+    # Actualizar leyenda de cobertura con rango real de RSRP
+    update_coverage_legend = pyqtSignal(float, float)
+    # Parámetros: vmin_dBm, vmax_dBm (rango dinámico percentil 5/95 usado en el colormap)
+    # Ejemplo: bridge.update_coverage_legend.emit(-95.3, -52.1)
+    
     # Cambiar modo del mapa
     set_map_mode = pyqtSignal(str)
     # Parámetro: 'pan' (normal) | 'add_antenna' (agregar antena) | 'move_antenna' (mover)
@@ -149,6 +154,20 @@ class MapBridge(QObject):
         #map { width: 100%; height: 100%; }
         .antenna-popup { font-family: Arial, sans-serif; font-size: 12px; }
         .coverage-layer { opacity: 0.6; }
+        #coverage-legend {
+            background: white; padding: 8px 10px; border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,.35); font: 12px/1.4 Arial,sans-serif;
+            display: none; min-width: 72px; pointer-events: none;
+        }
+        #coverage-legend .leg-title { font-weight: bold; font-size: 11px; color: #333;
+            text-align: center; margin-bottom: 5px; }
+        #coverage-legend .leg-wrap { display: flex; align-items: stretch; height: 130px; }
+        #coverage-legend .leg-bar { width: 18px;
+            background: linear-gradient(to top, #00007f, #0000ff, #007fff, #00ffff,
+                #7fff7f, #ffff00, #ff7f00, #ff0000, #7f0000);
+            border-radius: 2px; margin-right: 5px; }
+        #coverage-legend .leg-labels { display: flex; flex-direction: column;
+            justify-content: space-between; font-size: 10px; color: #444; }
     </style>
 </head>
 <body>
@@ -166,6 +185,7 @@ class MapBridge(QObject):
         let antennaMarkers = {};           // antenna_id → L.marker
         let coverageLayers = {};           // antenna_id → L.imageOverlay
         let currentMode = 'pan';           // 'pan', 'add_antenna', 'move_antenna'
+        let legendControl = null;          // control Leaflet para la leyenda RSRP
         
         // ─────────────────────────────────────
         // INICIALIZACIÓN DEL MAPA
@@ -327,8 +347,33 @@ class MapBridge(QObject):
             }
         }
         
-        // ─────────────────────────────────────
-        // INICIALIZAR PUENTE (Qt WebChannel)
+        function getLegendHTML(vmin, mid, vmax) {
+            return '<div class="leg-title">RSRP [dBm]</div>'
+                 + '<div class="leg-wrap">'
+                 +   '<div class="leg-bar"></div>'
+                 +   '<div class="leg-labels">'
+                 +     '<span>' + vmax + '</span>'
+                 +     '<span>' + mid  + '</span>'
+                 +     '<span>' + vmin + '</span>'
+                 +   '</div>'
+                 + '</div>';
+        }
+        
+        function updateCoverageLegend(vmin, vmax) {
+            const mid = Math.round((vmin + vmax) / 2);
+            const html = getLegendHTML(Math.round(vmin), mid, Math.round(vmax));
+            if (!legendControl) {
+                legendControl = L.control({ position: 'bottomright' });
+                legendControl.onAdd = function() {
+                    const div = L.DomUtil.create('div', '');
+                    div.id = 'coverage-legend';
+                    return div;
+                };
+                legendControl.addTo(map);
+            }
+            const el = document.getElementById('coverage-legend');
+            if (el) { el.innerHTML = html; el.style.display = 'block'; }
+        }
         // ─────────────────────────────────────
         
         new QWebChannel(qt.webChannelTransport, function(channel) {
@@ -349,6 +394,10 @@ class MapBridge(QObject):
             
             bridge.remove_coverage_layer.connect(function(id) {
                 removeCoverageLayer(id);
+            });
+            
+            bridge.update_coverage_legend.connect(function(vmin, vmax) {
+                updateCoverageLegend(vmin, vmax);
             });
             
             bridge.set_map_mode.connect(function(mode) {
