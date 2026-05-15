@@ -87,8 +87,8 @@ Usar estas metricas en cada escenario:
 | **Resolucion** | **300** |
 | **Puntos totales** | **90,000** |---
 
-### Escenario A2: Monocelda urbana COST-231
-**Razon:** Validar sensibilidad a parametros urbanos explicitos y coherencia de gradiente radial en urbano denso.
+### Escenario A2: Monocelda urbana COST-231 Hata
+**Razon:** Validar coherencia de gradiente radial en urbano denso y comparabilidad directa con Atoll (mismo modelo COST-231 Hata).
 
 | Parametro | Configuracion |
 |---|---|
@@ -98,11 +98,8 @@ Usar estas metricas en cada escenario:
 | Potencia Tx | 43 dBm |
 | Altura Tx | 35 m AGL |
 | Ganancia antena | 17 dBi |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | Entorno | Urban |
-| Building height | 20 m |
-| Street width | 15 m |
-| Street orientation | 30 grados |
 | Radio | 4 km |
 | **Resolucion** | **350** |
 | **Puntos totales** | **122,500** |---
@@ -120,10 +117,8 @@ Usar estas metricas en cada escenario:
 | Ganancia antena | 18 dBi |
 | Azimut | 0, 120, 240 grados |
 | Beamwidth horizontal | 65 grados |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | Entorno | Urban |
-| Building height | 18 m |
-| Street width | 12 m |
 | Radio | 4 km |
 | **Resolucion** | **350** |
 | **Puntos totales** | **122,500** |---
@@ -141,7 +136,7 @@ Usar estas metricas en cada escenario:
 | Ganancia antena | 17 dBi |
 | Azimut | Apuntando hacia zona de demanda con solape moderado |
 | Beamwidth | 65 a 90 grados |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | Entorno | Urban/Suburban segun zona |
 | Radio | 5 km |
 | **Resolucion** | **350** |
@@ -202,7 +197,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Numero de antenas | 1 direccional |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | Frecuencia | 1800 MHz |
 | Potencia Tx | 40 dBm |
 | Azimut | 0, 45, 90, 135 grados en corridas separadas |
@@ -233,7 +228,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | **Resolucion** | **200** |
 | **Puntos** | **40,000** |
 | Radio | 4 km |
@@ -247,7 +242,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | **Resolucion** | **350** |
 | **Puntos** | **122,500** |
 | Radio | 5 km |
@@ -261,7 +256,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 1 omni |
-| Modelo | COST-231 o 3GPP |
+| Modelo | COST-231 Hata o 3GPP |
 | **Resolucion** | **500** |
 | **Puntos** | **250,000** |
 | Radio | 5 km |
@@ -275,7 +270,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 5 direccionales |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | **Resolucion** | **300** |
 | **Puntos por grid** | **90,000** |
 | Radio | 5 km |
@@ -289,7 +284,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Antenas | 9 direccionales |
-| Modelo | COST-231 |
+| Modelo | COST-231 Hata |
 | **Resolucion** | **300** |
 | **Puntos por grid** | **90,000** |
 | Radio | 5 km |
@@ -303,7 +298,7 @@ Usar estas metricas en cada escenario:
 | Parametro | Configuracion |
 |---|---|
 | Topologia | Misma de G4 (5 antenas) |
-| Modelos | Okumura-Hata, COST-231, ITU-R P.1546, 3GPP |
+| Modelos | Okumura-Hata, COST-231 Hata, ITU-R P.1546, 3GPP |
 | **Resolucion** | **300** |
 | **Puntos** | **90,000** |
 | **Esperado** | Distinta ganancia por complejidad matematica del modelo |
