@@ -43,7 +43,13 @@ class FreeSpacePathLossModel:
         
         self.logger.debug(f"Calculated FSPL for f={frequency}MHz")
         
-        return fspl
+        # Retornar diccionario consistente con otros modelos
+        validity_mask = self.xp.ones_like(fspl, dtype=bool)
+        return {
+            'path_loss': fspl,
+            'validity_mask': validity_mask,
+            'valid_count': int(self.xp.sum(validity_mask)),
+        }
     
     def get_coverage_map(self, antenna_params, terrain_data, compute_engine):
         """Interfaz para compatibilidad (no usado directamente)"""

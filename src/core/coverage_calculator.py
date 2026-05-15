@@ -24,7 +24,8 @@ class CoverageCalculator:
         terrain_heights: np.ndarray,
         model,
         model_params: dict = None,
-        return_details: bool = False
+        return_details: bool = False,
+        terrain_loader=None
     ) -> np.ndarray:
         """
         Calcula cobertura para una antena
@@ -59,19 +60,81 @@ class CoverageCalculator:
             grid_lats, grid_lons
         )
 
+        # Obtener elevación del terreno en la ubicación de la antena
+        if terrain_loader is not None and terrain_loader.is_loaded():
+            tx_elevation = terrain_loader.get_elevation(antenna.latitude, antenna.longitude)
+            self.logger.info(f"Antenna elevation: {tx_elevation:.1f} m MSL")
+        else:
+            tx_elevation = 0.0  # Default si no hay terrain_loader
+            self.logger.info(f"Antenna elevation: {tx_elevation} m MSL (default - no terrain_loader)")
+
         # Preparar parámetros para model.calculate_path_loss
         path_loss_args = {
             'distances': distances,
             'frequency': antenna.frequency_mhz,
             'tx_height': antenna.height_agl,
+            'tx_elevation': tx_elevation,
             'terrain_heights': terrain_heights
         }
+
+        # Calcular perfiles radiales y distancias reales si hay TerrainLoader disponible
+        if terrain_loader is not None and terrain_loader.is_loaded():
+            gl = self.xp.asnumpy(grid_lats) if self.engine.use_gpu else grid_lats
+            gl_lons = self.xp.asnumpy(grid_lons) if self.engine.use_gpu else grid_lons
+            self.logger.info(f"Before get_radial_profiles: gl.shape={gl.shape}, gl.ravel().shape={gl.ravel().shape}")
+            
+            # ✅ FIX ITU: Detectar si es ITU-R P.1546 para extender perfiles hasta 15 km (SOLO para este modelo)
+            model_class_name = model.__class__.__name__ if hasattr(model, '__class__') else str(type(model))
+            is_itu_p1546 = 'ITU' in model_class_name or 'itu' in model_class_name.lower() or 'p1546' in model_class_name.lower()
+            max_dist = 15000 if is_itu_p1546 else None
+            self.logger.info(f"Terrain profiles: model={model_class_name}, is_itu_p1546={is_itu_p1546}, max_distance_m={max_dist}")
+            
+            # FASE A4 FIX: Obtener perfiles radiales
+            terrain_profiles = terrain_loader.get_radial_profiles(
+                antenna.latitude, antenna.longitude,
+                gl.ravel(), gl_lons.ravel(),
+                max_distance_m=max_dist
+            )
+            self.logger.info(f"After get_radial_profiles: terrain_profiles.shape={terrain_profiles.shape}")
+            
+            # FASE A4 FIX (NUEVO): Obtener distancias Haversine REALES para cada muestra radial
+            profile_distances = terrain_loader.get_profile_distances(
+                antenna.latitude, antenna.longitude,
+                gl.ravel(), gl_lons.ravel(),
+                max_distance_m=max_dist
+            )
+            self.logger.info(f"After get_profile_distances: profile_distances.shape={profile_distances.shape}")
+            
+            # FASE 2 FIX (NUEVO): Obtener perfiles suavizados (Gaussian filter) para h_eff más estable
+            smoothed_terrain_profiles = terrain_loader.get_smoothed_profiles(
+                terrain_profiles,
+                window_size_m=1000.0,
+                profile_distances=profile_distances
+            )
+            self.logger.info(f"After get_smoothed_profiles: smoothed_terrain_profiles.shape={smoothed_terrain_profiles.shape}")
+            
+            # Convertir todos los parámetros al módulo correcto (NumPy o CuPy)
+            terrain_profiles = self.xp.asarray(terrain_profiles)
+            profile_distances = self.xp.asarray(profile_distances)
+            smoothed_terrain_profiles = self.xp.asarray(smoothed_terrain_profiles)
+            self.logger.info(f"After xp.asarray: terrain_profiles.shape={terrain_profiles.shape}, "
+                           f"profile_distances.shape={profile_distances.shape}, "
+                           f"smoothed_terrain_profiles.shape={smoothed_terrain_profiles.shape}")
+            
+            # PASO CRÍTICO: Pasar DEM parámetros reales al modelo (MÁXIMO REALISMO)
+            path_loss_args['terrain_profiles'] = terrain_profiles
+            path_loss_args['profile_distances'] = profile_distances
+            path_loss_args['smoothed_terrain_profiles'] = smoothed_terrain_profiles
+        else:
+            self.logger.info(f"terrain_loader check: is_None={terrain_loader is None}, is_loaded={terrain_loader.is_loaded() if terrain_loader else 'N/A'}")
 
         # Agregar parámetros adicionales del modelo
         path_loss_args.update(model_params)
 
         # Calcular path loss usando modelo
-        path_loss = model.calculate_path_loss(**path_loss_args)
+        result = model.calculate_path_loss(**path_loss_args)
+        # Algunos modelos retornan dict, otros ndarray directamente
+        path_loss = result['path_loss'] if isinstance(result, dict) else result
 
         # Aplicar patrón de antena
         antenna_gain = self._apply_antenna_pattern(
@@ -304,10 +367,26 @@ class CoverageCalculator:
             'terrain_heights': terrain_heights_gpu
         }
 
+        # Calcular perfiles radiales si hay TerrainLoader disponible
+        if terrain_loader is not None and terrain_loader.is_loaded():
+            # Convertir a NumPy primero (terrain_loader espera NumPy, no GPU arrays)
+            lats_cpu = self.xp.asnumpy(grid_lats) if self.engine.use_gpu else grid_lats
+            lons_cpu = self.xp.asnumpy(grid_lons) if self.engine.use_gpu else grid_lons
+            terrain_profiles = terrain_loader.get_radial_profiles(
+                antenna.latitude, antenna.longitude,
+                lats_cpu.ravel(), lons_cpu.ravel()
+            )
+            # Convertir terrain_profiles al módulo correcto (NumPy o CuPy)
+            terrain_profiles = self.xp.asarray(terrain_profiles)
+            path_loss_args['terrain_profiles'] = terrain_profiles
+            self.logger.debug(f"terrain_profiles shape: {terrain_profiles.shape}")
+
         # Agregar parámetros adicionales del modelo (Okumura-Hata)
         path_loss_args.update(model_params)
 
-        path_loss = model.calculate_path_loss(**path_loss_args)
+        result = model.calculate_path_loss(**path_loss_args)
+        # Algunos modelos retornan dict, otros ndarray directamente
+        path_loss = result['path_loss'] if isinstance(result, dict) else result
 
         # Aplicar patrón de antena
         antenna_gain = self._apply_antenna_pattern(
