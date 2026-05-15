@@ -5,7 +5,7 @@
         "language": "es"
     },
     "compute": {
-        "use_gpu": false
+        "use_gpu": true
     },
     "ui": {
         "theme": "dark",
