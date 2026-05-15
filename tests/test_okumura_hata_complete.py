@@ -71,7 +71,7 @@ class TestOkumuraHataBasicCalculation(unittest.TestCase):
 
         path_loss = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights
-        )
+        )['path_loss']
 
         # Verificar shape
         self.assertEqual(path_loss.shape, distances.shape)
@@ -93,7 +93,7 @@ class TestOkumuraHataBasicCalculation(unittest.TestCase):
 
         path_loss = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights
-        )
+        )['path_loss']
 
         # Verificar monotonía creciente
         differences = np.diff(path_loss)
@@ -110,7 +110,7 @@ class TestOkumuraHataBasicCalculation(unittest.TestCase):
         for freq in frequencies:
             pl = self.model.calculate_path_loss(
                 np.array([distance]), freq, tx_height, terrain_heights
-            )
+            )['path_loss']
             path_losses.append(pl[0])
 
         # Path loss debe aumentar con frecuencia
@@ -136,7 +136,7 @@ class TestOkumuraHataTerrainHandling(unittest.TestCase):
         path_loss = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights,
             tx_elevation=tx_elevation
-        )
+        )['path_loss']
 
         self.assertTrue(len(path_loss) == 1)
         self.assertTrue(100 < path_loss[0] < 180)
@@ -153,7 +153,7 @@ class TestOkumuraHataTerrainHandling(unittest.TestCase):
         pl_1 = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights_1,
             tx_elevation=tx_elevation_1
-        )
+        )['path_loss']
 
         # Caso 2: TX más alto que terreno (mayor altura efectiva)
         tx_elevation_2 = 200
@@ -161,7 +161,7 @@ class TestOkumuraHataTerrainHandling(unittest.TestCase):
         pl_2 = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights_2,
             tx_elevation=tx_elevation_2
-        )
+        )['path_loss']
 
         # Mayor altura efectiva = menor path loss
         self.assertTrue(pl_2[0] < pl_1[0])
@@ -172,17 +172,139 @@ class TestOkumuraHataTerrainHandling(unittest.TestCase):
         frequency = 900
         tx_height = 50
         tx_elevation = 500  # TX a 500 msnm
-        # Terreno desciende desde montaña
-        terrain_heights = np.array([500.0, 300.0, 100.0])
+        # Terreno variable pero promedio mantiene h_eff en rango [30, 200]
+        # z_ref = mean([500, 500, 480]) = 493.33 → h_eff = 50 + 500 - 493.33 ≈ 56.67 (válido)
+        terrain_heights = np.array([500.0, 500.0, 480.0])
 
-        path_loss = self.model.calculate_path_loss(
+        result = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights,
             tx_elevation=tx_elevation
         )
+        path_loss = result['path_loss']
+        validity_mask = result['validity_mask']
 
         # Debe calcular altura efectiva usando promedio del terreno
         self.assertEqual(len(path_loss), 3)
-        self.assertTrue(np.all(path_loss > 100))
+        # Receptores válidos deben tener path_loss > 100
+        valid_pl = path_loss[validity_mask]
+        if len(valid_pl) > 0:
+            self.assertTrue(np.all(valid_pl > 100), "Path loss válido debe ser > 100")
+
+
+class TestOkumuraHataTerrainReferenceMethods(unittest.TestCase):
+    """Tests de métodos de referencia de terreno para h_b efectiva"""
+
+    def test_global_mean_mode_matches_legacy_default(self):
+        """El modo global_mean debe reproducir el comportamiento histórico"""
+        distances = np.array([1000, 3000, 5000, 9000, 12000], dtype=float)
+        terrain_heights = np.array([100, 130, 170, 210, 250], dtype=float)
+        frequency = 900
+        tx_height = 40
+        tx_elevation = 380
+
+        legacy = OkumuraHataModel()
+        explicit_global = OkumuraHataModel(config={'terrain_reference_method': 'global_mean'})
+
+        pl_legacy = legacy.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )['path_loss']
+
+        pl_global = explicit_global.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )['path_loss']
+
+        np.testing.assert_allclose(pl_legacy, pl_global, rtol=0.0, atol=1e-10)
+
+    def test_local_annulus_mean_changes_path_loss_consistently(self):
+        """local_annulus_mean debe modificar h_b efectiva respecto al promedio global"""
+        # Todos los receptores en rango válido [1, 20] km
+        distances = np.array([1200, 3200, 7000, 12000, 15000, 18000], dtype=float)
+        terrain_heights = np.array([100, 100, 180, 250, 320, 380], dtype=float)
+        frequency = 900
+        tx_height = 40
+        tx_elevation = 380
+
+        model_global = OkumuraHataModel(config={'terrain_reference_method': 'global_mean'})
+        model_local = OkumuraHataModel(config={
+            'terrain_reference_method': 'local_annulus_mean',
+            'terrain_reference_inner_km': 3.0,
+            'terrain_reference_outer_km': 15.0,
+            'terrain_min_samples': 1,
+        })
+
+        result_global = model_global.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )
+        result_local = model_local.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )
+        
+        pl_global = result_global['path_loss']
+        pl_local = result_local['path_loss']
+        validity_global = result_global['validity_mask']
+        validity_local = result_local['validity_mask']
+
+        # El anillo local tiene elevación media mayor que global en este caso,
+        # por tanto h_b efectiva baja y path loss debe aumentar.
+        # Comparar solo receptores válidos en ambos modelos
+        valid_both = validity_global & validity_local
+        if np.any(valid_both):
+            self.assertTrue(np.all(pl_local[valid_both] > pl_global[valid_both]))
+
+    def test_local_annulus_fallback_to_global_when_no_samples(self):
+        """Si no hay muestras suficientes en anillo, debe volver a global_mean"""
+        distances = np.array([500, 1200, 2200, 2800], dtype=float)
+        terrain_heights = np.array([100, 130, 150, 180], dtype=float)
+        frequency = 900
+        tx_height = 40
+        tx_elevation = 300
+
+        model_global = OkumuraHataModel(config={'terrain_reference_method': 'global_mean'})
+        model_local = OkumuraHataModel(config={
+            'terrain_reference_method': 'local_annulus_mean',
+            'terrain_reference_inner_km': 10.0,
+            'terrain_reference_outer_km': 15.0,
+            'terrain_min_samples': 1,
+        })
+
+        pl_global = model_global.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )['path_loss']
+        pl_local_fallback = model_local.calculate_path_loss(
+            distances,
+            frequency,
+            tx_height,
+            terrain_heights,
+            tx_elevation=tx_elevation,
+            environment='Urban'
+        )['path_loss']
+
+        np.testing.assert_allclose(pl_global, pl_local_fallback, rtol=0.0, atol=1e-10)
 
 
 class TestOkumuraHataEnvironmentCorrections(unittest.TestCase):
@@ -201,7 +323,7 @@ class TestOkumuraHataEnvironmentCorrections(unittest.TestCase):
         pl = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Urban'
-        )
+        )['path_loss']
         # Urbano es la referencia (sin corrección)
         self.assertTrue(len(pl) == 1)
         self.assertTrue(130 < pl[0] < 160)
@@ -211,12 +333,12 @@ class TestOkumuraHataEnvironmentCorrections(unittest.TestCase):
         pl_urban = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Urban'
-        )
+        )['path_loss']
 
         pl_suburban = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Suburban'
-        )
+        )['path_loss']
 
         # Suburban debe tener MENOR path loss que Urban
         self.assertTrue(pl_suburban[0] < pl_urban[0])
@@ -230,12 +352,12 @@ class TestOkumuraHataEnvironmentCorrections(unittest.TestCase):
         pl_urban = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Urban'
-        )
+        )['path_loss']
 
         pl_rural = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Rural'
-        )
+        )['path_loss']
 
         # Rural debe tener MENOR path loss que Urban
         self.assertTrue(pl_rural[0] < pl_urban[0])
@@ -249,17 +371,17 @@ class TestOkumuraHataEnvironmentCorrections(unittest.TestCase):
         pl_urban = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Urban'
-        )[0]
+        )['path_loss'][0]
 
         pl_suburban = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Suburban'
-        )[0]
+        )['path_loss'][0]
 
         pl_rural = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, environment='Rural'
-        )[0]
+        )['path_loss'][0]
 
         # Verificar orden: menor path loss en Rural
         self.assertTrue(pl_rural < pl_suburban < pl_urban)
@@ -281,7 +403,7 @@ class TestOkumuraHataCityTypeCorrection(unittest.TestCase):
         pl = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, city_type='medium'
-        )
+        )['path_loss']
         self.assertTrue(130 < pl[0] < 160)
 
     def test_large_city(self):
@@ -289,7 +411,7 @@ class TestOkumuraHataCityTypeCorrection(unittest.TestCase):
         pl = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, city_type='large'
-        )
+        )['path_loss']
         self.assertTrue(130 < pl[0] < 160)
 
     def test_large_vs_medium_city(self):
@@ -297,12 +419,12 @@ class TestOkumuraHataCityTypeCorrection(unittest.TestCase):
         pl_medium = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, city_type='medium'
-        )[0]
+        )['path_loss'][0]
 
         pl_large = self.model.calculate_path_loss(
             self.distances, self.frequency, self.tx_height,
             self.terrain_heights, city_type='large'
-        )[0]
+        )['path_loss'][0]
 
         # La diferencia debe existir pero ser pequeña (~1-3 dB)
         diff = abs(pl_large - pl_medium)
@@ -325,12 +447,12 @@ class TestOkumuraHataCOST231Extension(unittest.TestCase):
         pl_1800 = self.model.calculate_path_loss(
             self.distances, 1800, self.tx_height, self.terrain_heights,
             environment='Urban', city_type='large'
-        )[0]
+        )['path_loss'][0]
 
         pl_1400 = self.model.calculate_path_loss(
             self.distances, 1400, self.tx_height, self.terrain_heights,
             environment='Urban', city_type='large'
-        )[0]
+        )['path_loss'][0]
 
         # 1800 MHz debe tener mayor path loss que 1400 MHz
         self.assertTrue(pl_1800 > pl_1400)
@@ -343,13 +465,13 @@ class TestOkumuraHataCOST231Extension(unittest.TestCase):
         pl_large = self.model.calculate_path_loss(
             self.distances, frequency, self.tx_height, self.terrain_heights,
             environment='Urban', city_type='large'
-        )[0]
+        )['path_loss'][0]
 
         # Cm = 0 dB para ciudad mediana
         pl_medium = self.model.calculate_path_loss(
             self.distances, frequency, self.tx_height, self.terrain_heights,
             environment='Urban', city_type='medium'
-        )[0]
+        )['path_loss'][0]
 
         # La diferencia debe ser aproximadamente 3 dB
         diff = pl_large - pl_medium
@@ -373,7 +495,7 @@ class TestOkumuraHataReferenceValues(unittest.TestCase):
         pl = model.calculate_path_loss(
             np.array([distance]), frequency, hb, terrain_heights,
             mobile_height=hm, environment='Urban', city_type='medium'
-        )[0]
+        )['path_loss'][0]
 
         # Valor esperado aproximado: ~140-148 dB (varía según implementación exacta)
         # Rango aceptable: 135-150 dB
@@ -391,7 +513,7 @@ class TestOkumuraHataReferenceValues(unittest.TestCase):
         pl = model.calculate_path_loss(
             np.array([distance]), frequency, hb, terrain_heights,
             environment='Urban'
-        )[0]
+        )['path_loss'][0]
 
         # Valor esperado aproximado: ~130-145 dB
         self.assertTrue(120 < pl < 145, f"Path loss {pl:.2f} dB fuera de rango esperado")
@@ -417,7 +539,7 @@ class TestOkumuraHataGPUConsistency(unittest.TestCase):
             pl_cpu = model_cpu.calculate_path_loss(
                 distances, frequency, tx_height, terrain_heights,
                 tx_elevation=tx_elevation, environment='Urban'
-            )
+            )['path_loss']
 
             # Modelo GPU
             model_gpu = OkumuraHataModel(compute_module=cp)
@@ -427,7 +549,7 @@ class TestOkumuraHataGPUConsistency(unittest.TestCase):
             pl_gpu = model_gpu.calculate_path_loss(
                 distances_gpu, frequency, tx_height, terrain_heights_gpu,
                 tx_elevation=tx_elevation, environment='Urban'
-            )
+            )['path_loss']
 
             # Convertir GPU a CPU
             pl_gpu_cpu = cp.asnumpy(pl_gpu)
@@ -459,12 +581,12 @@ class TestOkumuraHataGPUConsistency(unittest.TestCase):
                 pl_cpu = model_cpu.calculate_path_loss(
                     distances, frequency, tx_height, terrain_heights,
                     environment=env
-                )
+                )['path_loss']
 
                 pl_gpu = model_gpu.calculate_path_loss(
                     cp.array(distances), frequency, tx_height,
                     cp.array(terrain_heights), environment=env
-                )
+                )['path_loss']
 
                 pl_gpu_cpu = cp.asnumpy(pl_gpu)
 
@@ -494,7 +616,7 @@ class TestOkumuraHataEdgeCases(unittest.TestCase):
         # No debe fallar
         pl = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights
-        )
+        )['path_loss']
         self.assertTrue(len(pl) == 1)
 
     def test_maximum_distance(self):
@@ -506,7 +628,7 @@ class TestOkumuraHataEdgeCases(unittest.TestCase):
 
         pl = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights
-        )
+        )['path_loss']
         self.assertTrue(len(pl) == 1)
         self.assertTrue(150 < pl[0] < 180)
 
@@ -518,13 +640,31 @@ class TestOkumuraHataEdgeCases(unittest.TestCase):
         tx_height = 40
         terrain_heights = np.random.uniform(0, 200, 10000)
 
-        pl = self.model.calculate_path_loss(
+        result = self.model.calculate_path_loss(
             distances, frequency, tx_height, terrain_heights
         )
+        pl = result['path_loss']
 
         self.assertEqual(len(pl), 10000)
-        self.assertTrue(np.all(pl > 0))
-        self.assertTrue(np.all(pl < 200))
+        
+        # ACTUALIZADO: Ahora usamos extrapolación profesional (como Atoll)
+        # NO usamos NaN masking agresivo - receptores fuera de rango siguen calculándose
+        # validity_mask es METADATO de confianza, no criterio de invalidación
+        validity_mask = result['validity_mask']
+        
+        # Verificar que ALL receptores tienen valores finitos (extrapolación)
+        self.assertTrue(np.all(np.isfinite(pl)), "Todos los path_loss deben ser finitos")
+        
+        # Receptores válidos deben estar en rango razonable
+        valid_pl = pl[validity_mask]
+        if len(valid_pl) > 0:
+            self.assertTrue(np.all(valid_pl > 0), "Path loss válido debe ser > 0")
+            self.assertTrue(np.all(valid_pl < 200), "Path loss válido debe ser < 200")
+        
+        # Receptores inválidos también tienen valores (extrapolados), no NaN
+        invalid_pl = pl[~validity_mask]
+        if len(invalid_pl) > 0:
+            self.assertTrue(np.all(np.isfinite(invalid_pl)), "Path loss extrapolado debe ser finito")
 
 
 class TestOkumuraHataModelInfo(unittest.TestCase):

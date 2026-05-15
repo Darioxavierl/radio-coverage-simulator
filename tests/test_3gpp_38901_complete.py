@@ -84,7 +84,7 @@ class TestThreGPP38901BasicCalculation(unittest.TestCase):
         model = ThreGPP38901Model({'scenario': 'UMa'})
         distances = np.array([0.1, 0.5, 1.0, 2.0])  # km
         frequency = 28000  # MHz (28 GHz)
-        pl = model.calculate_path_loss(distances, frequency)
+        pl = model.calculate_path_loss(distances, frequency)['path_loss']
         self.assertEqual(pl.shape, distances.shape)
         self.assertTrue(np.all(pl > 0))  # Path loss should be positive
         print(f"[OK] Path loss calculated: {pl}")
@@ -94,7 +94,7 @@ class TestThreGPP38901BasicCalculation(unittest.TestCase):
         print("Test: Output shape preservation...")
         model = ThreGPP38901Model()
         distances = np.random.rand(10, 10)  # 2D array
-        pl = model.calculate_path_loss(distances, 28000)
+        pl = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(pl.shape, distances.shape)
         print("[OK] Shape preserved")
 
@@ -104,7 +104,7 @@ class TestThreGPP38901BasicCalculation(unittest.TestCase):
         model = ThreGPP38901Model()
         # After PHASE 2 refactor: distances always in METERS
         distances = np.array([100.0, 500.0, 1000.0, 2000.0, 5000.0])  # in meters
-        pl = model.calculate_path_loss(distances, 28000)
+        pl = model.calculate_path_loss(distances, 28000)['path_loss']
         diffs = np.diff(pl)
         self.assertTrue(np.all(diffs > 0), "Path loss should increase with distance")
         print(f"[OK] Monotonic increase: {pl}")
@@ -115,7 +115,7 @@ class TestThreGPP38901BasicCalculation(unittest.TestCase):
         model = ThreGPP38901Model()
         distances = np.array([1.0])
         frequencies = np.array([1000, 5000, 10000, 28000])  # MHz
-        pls = [model.calculate_path_loss(distances, f)[0] for f in frequencies]
+        pls = [model.calculate_path_loss(distances, f)['path_loss'][0] for f in frequencies]
         diffs = np.diff(pls)
         self.assertTrue(np.all(diffs > 0), "Path loss should increase with frequency")
         print(f"[OK] Frequency monotonicity: {pls}")
@@ -129,7 +129,7 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         print("Test: Minimum frequency (30 MHz)...")
         model = ThreGPP38901Model()
         # After PHASE 2 refactor: distances always in METERS
-        pl = model.calculate_path_loss(np.array([1000.0]), 30)  # 1000 meters (1 km)
+        pl = model.calculate_path_loss(np.array([1000.0]), 30)['path_loss']  # 1000 meters (1 km)
         self.assertGreater(pl[0], 0)
         print("[OK] 30 MHz accepted")
 
@@ -137,7 +137,7 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         """Test: Frecuencia 4000 MHz (5G NR)"""
         print("Test: 4 GHz frequency...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 4000)
+        pl = model.calculate_path_loss(np.array([1.0]), 4000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 4000 MHz accepted")
 
@@ -145,7 +145,7 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         """Test: Frecuencia 28 GHz (5G mmWave)"""
         print("Test: 28 GHz (5G mmWave)...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 28000)
+        pl = model.calculate_path_loss(np.array([1.0]), 28000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 28 GHz accepted")
 
@@ -153,7 +153,7 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         """Test: Frecuencia 73 GHz (5G mmWave high band)"""
         print("Test: 73 GHz (high mmWave)...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 73000)
+        pl = model.calculate_path_loss(np.array([1.0]), 73000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 73 GHz accepted")
 
@@ -163,7 +163,7 @@ class TestThreGPP38901FrequencyRange(unittest.TestCase):
         model = ThreGPP38901Model()
         frequencies = np.array([500, 1000, 2600, 4000, 11000, 28000, 73000])
         distances = np.array([1.0])
-        pls = [model.calculate_path_loss(distances, f)[0] for f in frequencies]
+        pls = [model.calculate_path_loss(distances, f)['path_loss'][0] for f in frequencies]
         diffs = np.diff(pls)
         self.assertTrue(np.all(diffs > 0))
         print(f"[OK] Monotonic: {pls}")
@@ -176,7 +176,7 @@ class TestThreGPP38901DistanceRange(unittest.TestCase):
         """Test: Distancia 10m (mínimo)"""
         print("Test: Minimum distance (10 m)...")
         model = ThreGPP38901Model({'scenario': 'UMa'})
-        pl = model.calculate_path_loss(np.array([0.01]), 28000)
+        pl = model.calculate_path_loss(np.array([0.01]), 28000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 10 m accepted")
 
@@ -184,7 +184,7 @@ class TestThreGPP38901DistanceRange(unittest.TestCase):
         """Test: Distancia 1 km (típica)"""
         print("Test: 1 km distance...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 28000)
+        pl = model.calculate_path_loss(np.array([1.0]), 28000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 1 km accepted")
 
@@ -194,7 +194,7 @@ class TestThreGPP38901DistanceRange(unittest.TestCase):
         model = ThreGPP38901Model({'scenario': 'UMa'})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            pl = model.calculate_path_loss(np.array([10.0]), 28000)
+            pl = model.calculate_path_loss(np.array([10.0]), 28000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 10 km UMa accepted")
 
@@ -204,7 +204,7 @@ class TestThreGPP38901DistanceRange(unittest.TestCase):
         model = ThreGPP38901Model({'scenario': 'UMi'})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            pl = model.calculate_path_loss(np.array([5.0]), 28000)
+            pl = model.calculate_path_loss(np.array([5.0]), 28000)['path_loss']
         self.assertGreater(pl[0], 0)
         print("[OK] 5 km UMi accepted")
 
@@ -262,8 +262,8 @@ class TestThreGPP38901Scenarios(unittest.TestCase):
         model_uma = ThreGPP38901Model({'scenario': 'UMa'})
         model_umi = ThreGPP38901Model({'scenario': 'UMi'})
         distances = np.array([0.5])
-        pl_uma = model_uma.calculate_path_loss(distances, 28000)
-        pl_umi = model_umi.calculate_path_loss(distances, 28000)
+        pl_uma = model_uma.calculate_path_loss(distances, 28000)['path_loss']
+        pl_umi = model_umi.calculate_path_loss(distances, 28000)['path_loss']
         # UMi should be higher due to lower antena heights
         self.assertNotAlmostEqual(pl_uma[0], pl_umi[0], places=0)
         print(f"[OK] UMa={pl_uma[0]:.1f}, UMi={pl_umi[0]:.1f} dB")
@@ -274,8 +274,8 @@ class TestThreGPP38901Scenarios(unittest.TestCase):
         model_rma = ThreGPP38901Model({'scenario': 'RMa'})
         model_uma = ThreGPP38901Model({'scenario': 'UMa'})
         distances = np.array([5.0])
-        pl_rma = model_rma.calculate_path_loss(distances, 28000)
-        pl_uma = model_uma.calculate_path_loss(distances, 28000)
+        pl_rma = model_rma.calculate_path_loss(distances, 28000)['path_loss']
+        pl_uma = model_uma.calculate_path_loss(distances, 28000)['path_loss']
         self.assertNotEqual(pl_rma[0], pl_uma[0])
         print(f"[OK] RMa={pl_rma[0]:.1f}, UMa={pl_uma[0]:.1f} dB")
 
@@ -286,8 +286,8 @@ class TestThreGPP38901Scenarios(unittest.TestCase):
         # After PHASE 2 refactor: distances always in METERS
         distances = np.array([1000.0])  # 1000 meters (1 km)
         # After PHASE 1 refactor: h_ue must be passed in kwargs (has priority over rx_height)
-        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)
-        pl_3_0m = model.calculate_path_loss(distances, 28000, h_ue=3.0)
+        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)['path_loss']
+        pl_3_0m = model.calculate_path_loss(distances, 28000, h_ue=3.0)['path_loss']
         # Taller UE should have less path loss (negative correction)
         self.assertLess(pl_3_0m[0], pl_1_5m[0])
         print(f"[OK] Height effect: 1.5m={pl_1_5m[0]:.1f}, 3.0m={pl_3_0m[0]:.1f} dB")
@@ -302,9 +302,9 @@ class TestThreGPP38901BreakpointDistance(unittest.TestCase):
         config = {'scenario': 'UMa', 'h_bs': 25, 'h_ue': 1.5}
         model = ThreGPP38901Model(config)
         d_bp = model.get_breakpoint_distance()
-        # d_BP = 4 * h_BS * h_UT * f_GHz / c = 4 * 25 * 1.5 * 0.3 = 45m
-        self.assertGreater(d_bp, 40)
-        self.assertLess(d_bp, 50)
+        # d_BP = 4*h_BS'*h_UT'*fc/c = 4*24*0.5*2e9/3e8 = 320m (@ 2 GHz default)
+        self.assertGreater(d_bp, 200)
+        self.assertLess(d_bp, 500)
         print(f"[OK] Breakpoint distance = {d_bp:.1f} m")
 
     def test_breakpoint_increases_with_frequency(self):
@@ -326,7 +326,7 @@ class TestThreGPP38901EdgeCases(unittest.TestCase):
         """Test: Cálculo para punto único"""
         print("Test: Single point calculation...")
         model = ThreGPP38901Model()
-        pl = model.calculate_path_loss(np.array([1.0]), 28000)
+        pl = model.calculate_path_loss(np.array([1.0]), 28000)['path_loss']
         self.assertEqual(pl.shape, (1,))
         self.assertGreater(pl[0], 0)
         print(f"[OK] Single point: {pl[0]:.1f} dB")
@@ -339,7 +339,7 @@ class TestThreGPP38901EdgeCases(unittest.TestCase):
         distances = np.random.rand(100, 100) * 5000 + 100  # 10,000 points, 100-5100 meters
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            pl = model.calculate_path_loss(distances, 28000)
+            pl = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(pl.shape, (100, 100))
         self.assertTrue(np.all(pl > 0))
         print("[OK] Large grid computed")
@@ -350,7 +350,7 @@ class TestThreGPP38901EdgeCases(unittest.TestCase):
         model = ThreGPP38901Model()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            pl = model.calculate_path_loss(np.array([0.005]), 28000)  # 5 meters
+            pl = model.calculate_path_loss(np.array([0.005]), 28000)['path_loss']  # 5 meters
         self.assertGreater(pl[0], 0)
         print(f"[OK] 5m distance: {pl[0]:.1f} dB")
 
@@ -360,8 +360,8 @@ class TestThreGPP38901EdgeCases(unittest.TestCase):
         model = ThreGPP38901Model()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            pl_low = model.calculate_path_loss(np.array([1.0]), 500)  # 0.5 GHz
-            pl_high = model.calculate_path_loss(np.array([1.0]), 100000)  # 100 GHz
+            pl_low = model.calculate_path_loss(np.array([1.0]), 500)['path_loss']  # 0.5 GHz
+            pl_high = model.calculate_path_loss(np.array([1.0]), 100000)['path_loss']  # 100 GHz
         self.assertGreater(pl_low[0], 0)
         self.assertGreater(pl_high[0], 0)
         self.assertGreater(pl_high[0], pl_low[0])
@@ -376,7 +376,7 @@ class TestThreGPP38901Consistency(unittest.TestCase):
         print("Test: UMa reference value...")
         model = ThreGPP38901Model({'scenario': 'UMa'})
         # After PHASE 2 refactor: distances always in METERS
-        pl = model.calculate_path_loss(np.array([100.0]), 28000)  # 100 meters
+        pl = model.calculate_path_loss(np.array([100.0]), 28000)['path_loss']  # 100 meters
         # At 100m: path loss ~113-114 dB with probabilistic blending at 28 GHz
         self.assertGreater(pl[0], 110)
         self.assertLess(pl[0], 120)
@@ -387,10 +387,11 @@ class TestThreGPP38901Consistency(unittest.TestCase):
         print("Test: UMi reference value...")
         model = ThreGPP38901Model({'scenario': 'UMi'})
         # After PHASE 2 refactor: distances always in METERS
-        pl = model.calculate_path_loss(np.array([100.0]), 28000)  # 100 meters
-        # At 100m: path loss ~122-123 dB with probabilistic blending at 28 GHz
-        self.assertGreater(pl[0], 120)
-        self.assertLess(pl[0], 130)
+        pl = model.calculate_path_loss(np.array([100.0]), 28000)['path_loss']  # 100 meters
+        # At 100m UMi 28GHz (correct model): ~119 dB with probabilistic blending
+        # P_LOS~0.23 -> PL = 0.23*103 + 0.77*124 = 119 dB
+        self.assertGreater(pl[0], 115)
+        self.assertLess(pl[0], 125)
         print(f"[OK] UMi 100m: {pl[0]:.1f} dB")
 
     def test_numeric_stability_large_distance(self):
@@ -398,7 +399,7 @@ class TestThreGPP38901Consistency(unittest.TestCase):
         print("Test: Numeric stability at large distances...")
         model = ThreGPP38901Model()
         distances = np.array([9999.0])  # Near max distance
-        pl = model.calculate_path_loss(distances, 28000)
+        pl = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertTrue(np.isfinite(pl[0]))
         self.assertGreater(pl[0], 0)
         print(f"[OK] 9999 km: {pl[0]:.1f} dB")
@@ -423,8 +424,8 @@ class TestThreGPP38901GPUConsistency(unittest.TestCase):
             model_gpu = ThreGPP38901Model(numpy_module=cupy)
 
             distances = np.array([0.1, 0.5, 1.0, 2.0])
-            pl_cpu = model_cpu.calculate_path_loss(distances, 28000)
-            pl_gpu = model_gpu.calculate_path_loss(distances, 28000)
+            pl_cpu = model_cpu.calculate_path_loss(distances, 28000)['path_loss']
+            pl_gpu = model_gpu.calculate_path_loss(distances, 28000)['path_loss']
 
             # Convert GPU results to CPU for comparison
             pl_gpu_np = cupy.asnumpy(pl_gpu)
@@ -449,8 +450,8 @@ class TestThreGPP38901GPUConsistency(unittest.TestCase):
             model_gpu = ThreGPP38901Model(numpy_module=cupy)
 
             distances = np.random.rand(50, 50)
-            pl_cpu = model_cpu.calculate_path_loss(distances, 28000)
-            pl_gpu = model_gpu.calculate_path_loss(distances, 28000)
+            pl_cpu = model_cpu.calculate_path_loss(distances, 28000)['path_loss']
+            pl_gpu = model_gpu.calculate_path_loss(distances, 28000)['path_loss']
 
             pl_gpu_np = cupy.asnumpy(pl_gpu)
             diff = np.abs(pl_cpu - pl_gpu_np)
@@ -500,7 +501,7 @@ class TestThreGPP38901TerrainCorrection(unittest.TestCase):
             tx_height=25.0,
             terrain_heights=terrain,
             tx_elevation=100.0,
-        )
+        )['path_loss']
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             pl_dem = model_dem.calculate_path_loss(
@@ -509,7 +510,7 @@ class TestThreGPP38901TerrainCorrection(unittest.TestCase):
                 tx_height=25.0,
                 terrain_heights=terrain,
                 tx_elevation=100.0,
-            )
+            )['path_loss']
 
         diff = pl_dem - pl_prob
         self.assertLess(float(np.max(diff)), 0.25)
@@ -535,7 +536,7 @@ class TestThreGPP38901TerrainCorrection(unittest.TestCase):
             tx_height=25.0,
             terrain_heights=terrain,
             tx_elevation=100.0,
-        )
+        )['path_loss']
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             pl_dem = model_dem.calculate_path_loss(
@@ -544,7 +545,7 @@ class TestThreGPP38901TerrainCorrection(unittest.TestCase):
                 tx_height=25.0,
                 terrain_heights=terrain,
                 tx_elevation=100.0,
-            )
+            )['path_loss']
 
         correction = pl_dem - pl_prob
         far_side = correction[ridge_row + 2:, :]

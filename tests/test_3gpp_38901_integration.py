@@ -41,8 +41,8 @@ class TestThreGPP38901ParameterPassing(unittest.TestCase):
             tx_height=25,
             rx_height=1.5,
         )
-        self.assertEqual(result.shape, distances.shape)
-        self.assertTrue(np.all(np.isfinite(result)))
+        self.assertEqual(result['path_loss'].shape, distances.shape)
+        self.assertTrue(np.all(np.isfinite(result['path_loss'])))
         print("[OK] All parameters accepted")
 
     def test_scenario_parameter_validation(self):
@@ -63,8 +63,8 @@ class TestThreGPP38901ParameterPassing(unittest.TestCase):
         distances = np.array([1000.0])  # 1000 meters (1 km)
 
         # After PHASE 1 refactor: h_ue must be passed in kwargs (has priority over rx_height)
-        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)
-        pl_2_0m = model.calculate_path_loss(distances, 28000, h_ue=2.0)
+        pl_1_5m = model.calculate_path_loss(distances, 28000, h_ue=1.5)['path_loss']
+        pl_2_0m = model.calculate_path_loss(distances, 28000, h_ue=2.0)['path_loss']
 
         # Different heights should produce different results
         self.assertNotAlmostEqual(pl_1_5m[0], pl_2_0m[0])
@@ -94,7 +94,7 @@ class TestThreGPP38901OutputConsistency(unittest.TestCase):
         print("Test: Positive path loss...")
         model = ThreGPP38901Model()
         distances = np.random.rand(10, 10) * 5 + 0.1  # 0.1-5.1 km
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertTrue(np.all(result > 0))
         print("[OK] All values positive")
 
@@ -104,7 +104,7 @@ class TestThreGPP38901OutputConsistency(unittest.TestCase):
         model = ThreGPP38901Model({'scenario': 'UMa'})
         # After PHASE 2 refactor: distances always in METERS
         distances = np.array([10.0, 100.0, 1000.0, 10000.0])  # 10m to 10km
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
 
         # Check ranges are reasonable for 28 GHz
         self.assertTrue(np.all(result > 50))   # No negative or unrealistic lows
@@ -116,7 +116,7 @@ class TestThreGPP38901OutputConsistency(unittest.TestCase):
         print("Test: No NaN/Inf...")
         model = ThreGPP38901Model()
         distances = np.random.rand(100) * 9  # 0-9 km
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertTrue(np.all(np.isfinite(result)))
         print("[OK] All values finite")
 
@@ -126,8 +126,8 @@ class TestThreGPP38901OutputConsistency(unittest.TestCase):
         model = ThreGPP38901Model()
         distances = np.array([1.0])
 
-        pl_low = model.calculate_path_loss(distances, 1000)  # 1 GHz
-        pl_high = model.calculate_path_loss(distances, 28000)  # 28 GHz
+        pl_low = model.calculate_path_loss(distances, 1000)['path_loss']  # 1 GHz
+        pl_high = model.calculate_path_loss(distances, 28000)['path_loss']  # 28 GHz
 
         self.assertLess(pl_low[0], pl_high[0])
         print(f"[OK] 1GHz={pl_low[0]:.1f}, 28GHz={pl_high[0]:.1f} dB")
@@ -145,7 +145,7 @@ class TestThreGPP38901ScenarioDifferences(unittest.TestCase):
 
         for scenario in scenarios:
             model = ThreGPP38901Model({'scenario': scenario})
-            results[scenario] = model.calculate_path_loss(distances, 28000)[0]
+            results[scenario] = model.calculate_path_loss(distances, 28000)['path_loss'][0]
 
         # All three should be different
         result_values = np.array(list(results.values()))
@@ -175,7 +175,7 @@ class TestExistingModelsNotBroken(unittest.TestCase):
         print("Test: Free Space model...")
         model = FreeSpacePathLossModel()
         distances = np.array([0.5, 1.0, 2.0])
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(result.shape, distances.shape)
         self.assertTrue(np.all(result > 0))
         print("[OK] Free Space works")
@@ -187,7 +187,7 @@ class TestExistingModelsNotBroken(unittest.TestCase):
         model = OkumuraHataModel(config)
         distances = np.array([1.0, 5.0])
         terrain_heights = np.zeros_like(distances) * 1000
-        result = model.calculate_path_loss(distances, 900, tx_height=35, terrain_heights=terrain_heights)
+        result = model.calculate_path_loss(distances, 900, tx_height=35, terrain_heights=terrain_heights)['path_loss']
         self.assertEqual(result.shape, distances.shape)
         print("[OK] Okumura-Hata works")
 
@@ -199,7 +199,7 @@ class TestExistingModelsNotBroken(unittest.TestCase):
         model = COST231WalfischIkegamiModel(config)
         distances = np.array([0.1, 0.3])
         terrain_heights = np.zeros_like(distances) * 1000
-        result = model.calculate_path_loss(distances, 900, tx_height=30, terrain_heights=terrain_heights)
+        result = model.calculate_path_loss(distances, 900, tx_height=30, terrain_heights=terrain_heights)['path_loss']
         self.assertEqual(result.shape, distances.shape)
         print("[OK] COST-231 works")
 
@@ -207,11 +207,20 @@ class TestExistingModelsNotBroken(unittest.TestCase):
     def test_itu_p1546_model_works(self):
         """Test: Modelo ITU-R P.1546 sigue funcionando"""
         print("Test: ITU-R P.1546 model...")
-        config = {'scenario': 'UMa'}
+        config = {'scenario': 'UMa', 'use_dem': False}
         model = ITUR_P1546Model(config)
         distances = np.array([1.0, 5.0])
-        terrain_heights = np.zeros_like(distances) * 1000
-        result = model.calculate_path_loss(distances, 900, tx_height=25, terrain_heights=terrain_heights)
+        terrain_heights = np.zeros_like(distances)
+        # ITU P.1546 requiere terrain_profiles (n_receptors x n_radios) para calcular h_eff
+        terrain_profiles = np.zeros((2, 10))
+        result = model.calculate_path_loss(
+            distances, 900, tx_height=25,
+            terrain_heights=terrain_heights,
+            terrain_profiles=terrain_profiles,
+        )
+        # P.1546 retorna ndarray directamente
+        if isinstance(result, dict):
+            result = result['path_loss']
         self.assertEqual(result.shape, distances.shape)
         print("[OK] ITU-R P.1546 works")
 
@@ -223,7 +232,7 @@ class TestThreGPP38901SpecialCases(unittest.TestCase):
         """Test: Distancia muy corta (10 m)"""
         print("Test: Very short distance...")
         model = ThreGPP38901Model()
-        result = model.calculate_path_loss(np.array([0.01]), 28000)
+        result = model.calculate_path_loss(np.array([0.01]), 28000)['path_loss']
         self.assertGreater(result[0], 0)
         print(f"[OK] 10m: {result[0]:.1f} dB")
 
@@ -233,7 +242,7 @@ class TestThreGPP38901SpecialCases(unittest.TestCase):
         model = ThreGPP38901Model({'scenario': 'RMa'})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            result = model.calculate_path_loss(np.array([1000.0]), 1000)
+            result = model.calculate_path_loss(np.array([1000.0]), 1000)['path_loss']
         self.assertTrue(np.isfinite(result[0]))
         print(f"[OK] 1000km: {result[0]:.1f} dB")
 
@@ -244,12 +253,12 @@ class TestThreGPP38901SpecialCases(unittest.TestCase):
         distances = np.array([1.0])
 
         # n78 band: 3.3-4.2 GHz
-        pl_n78_low = model.calculate_path_loss(distances, 3300)
-        pl_n78_high = model.calculate_path_loss(distances, 4200)
+        pl_n78_low = model.calculate_path_loss(distances, 3300)['path_loss']
+        pl_n78_high = model.calculate_path_loss(distances, 4200)['path_loss']
 
         # n257 band: 24.25-29.5 GHz
-        pl_n257_low = model.calculate_path_loss(distances, 24250)
-        pl_n257_high = model.calculate_path_loss(distances, 29500)
+        pl_n257_low = model.calculate_path_loss(distances, 24250)['path_loss']
+        pl_n257_high = model.calculate_path_loss(distances, 29500)['path_loss']
 
         self.assertLess(pl_n78_low[0], pl_n78_high[0])
         self.assertLess(pl_n257_low[0], pl_n257_high[0])
@@ -265,7 +274,7 @@ class TestThreGPP38901ArrayShapes(unittest.TestCase):
         print("Test: 1D array input...")
         model = ThreGPP38901Model()
         distances = np.array([0.5, 1.0, 2.0])
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(result.shape, (3,))
         print("[OK] 1D shape preserved")
 
@@ -274,7 +283,7 @@ class TestThreGPP38901ArrayShapes(unittest.TestCase):
         print("Test: 2D array input...")
         model = ThreGPP38901Model()
         distances = np.random.rand(5, 5)
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(result.shape, (5, 5))
         print("[OK] 2D shape preserved")
 
@@ -283,7 +292,7 @@ class TestThreGPP38901ArrayShapes(unittest.TestCase):
         print("Test: 3D array input...")
         model = ThreGPP38901Model()
         distances = np.random.rand(3, 4, 5)
-        result = model.calculate_path_loss(distances, 28000)
+        result = model.calculate_path_loss(distances, 28000)['path_loss']
         self.assertEqual(result.shape, (3, 4, 5))
         print("[OK] 3D shape preserved")
 
@@ -303,7 +312,7 @@ class TestConfigurations(unittest.TestCase):
                 config = {'scenario': scenario, 'h_bs': h_bs}
                 model = ThreGPP38901Model(config)
                 distances = np.array([1.0])
-                result = model.calculate_path_loss(distances, 28000)
+                result = model.calculate_path_loss(distances, 28000)['path_loss']
                 self.assertGreater(result[0], 0)
                 count += 1
 
