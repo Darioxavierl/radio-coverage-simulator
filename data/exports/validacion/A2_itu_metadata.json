@@ -1,0 +1,56 @@
+{
+  "simulation_info": {
+    "timestamp": "2026-05-14T17:43:45.019293",
+    "software": "RF Coverage Tool v1.0",
+    "export_timestamp": "2026-05-14T17:44:27.120629"
+  },
+  "compute_performance": {
+    "gpu_used": false,
+    "gpu_device": "CPU Only",
+    "total_execution_time_seconds": 6.87,
+    "antenna_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 6.74
+    },
+    "terrain_loading_time_seconds": 0.128,
+    "antenna_total_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 6.74
+    },
+    "antenna_coverage_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 6.343
+    },
+    "antenna_render_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 0.394
+    },
+    "multi_antenna_aggregation_time_seconds": 0.003
+  },
+  "grid_parameters": {
+    "radius_km": 8,
+    "resolution": 300,
+    "total_grid_points": 90000
+  },
+  "propagation_model": {
+    "model_name": "itu_p1546",
+    "parameters": {
+      "environment": "Urban",
+      "terrain_type": "mixed"
+    }
+  },
+  "data_description": {
+    "num_antennas": 1,
+    "num_grid_points_per_antenna": 90000,
+    "fields": [
+      "antenna_id",
+      "frequency_mhz",
+      "tx_power_dbm",
+      "tx_height_m",
+      "grid_lat",
+      "grid_lon",
+      "rsrp_dbm",
+      "path_loss_db",
+      "antenna_gain_dbi",
+      "model_used",
+      "environment",
+      "terrain_type"
+    ]
+  }
+}

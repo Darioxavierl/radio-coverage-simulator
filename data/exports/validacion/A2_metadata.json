@@ -1,0 +1,55 @@
+{
+  "simulation_info": {
+    "timestamp": "2026-05-13T21:10:36.825507",
+    "software": "RF Coverage Tool v1.0",
+    "export_timestamp": "2026-05-13T21:11:10.687158"
+  },
+  "compute_performance": {
+    "gpu_used": true,
+    "gpu_device": "GPU: NVIDIA GeForce GTX 1660 SUPER (CC 7.5)",
+    "total_execution_time_seconds": 7.59,
+    "antenna_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 7.425
+    },
+    "terrain_loading_time_seconds": 0.166,
+    "antenna_total_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 7.425
+    },
+    "antenna_coverage_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 7.057
+    },
+    "antenna_render_times_seconds": {
+      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 0.364
+    },
+    "multi_antenna_aggregation_time_seconds": 0.003
+  },
+  "grid_parameters": {
+    "radius_km": 4,
+    "resolution": 350,
+    "total_grid_points": 122500
+  },
+  "propagation_model": {
+    "model_name": "cost231_hata",
+    "parameters": {
+      "city_type": "medium"
+    }
+  },
+  "data_description": {
+    "num_antennas": 1,
+    "num_grid_points_per_antenna": 122500,
+    "fields": [
+      "antenna_id",
+      "frequency_mhz",
+      "tx_power_dbm",
+      "tx_height_m",
+      "grid_lat",
+      "grid_lon",
+      "rsrp_dbm",
+      "path_loss_db",
+      "antenna_gain_dbi",
+      "model_used",
+      "environment",
+      "terrain_type"
+    ]
+  }
+}

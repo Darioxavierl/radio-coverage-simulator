@@ -1,0 +1,41 @@
+{
+    "id": "a542c3ca-baf6-464f-b2f6-04e1f1a2fd7a",
+    "name": "Proyecto Sin Título",
+    "description": "",
+    "created_date": "2026-05-12T19:36:55.467889",
+    "modified_date": "2026-05-12T19:40:03.545674",
+    "author": "",
+    "center_lat": -2.903974485148948,
+    "center_lon": -79.004123210907,
+    "zoom_level": 16,
+    "terrain_file": null,
+    "sites": {},
+    "antennas": {
+        "a6e7bd97-f8e5-4237-b430-ef1f265601df": {
+            "id": "a6e7bd97-f8e5-4237-b430-ef1f265601df",
+            "name": "Antenna 1",
+            "site_id": null,
+            "latitude": -2.903966,
+            "longitude": -79.004123,
+            "height_agl": 30.0,
+            "frequency_mhz": 900.0,
+            "bandwidth_mhz": 20.0,
+            "tx_power_dbm": 43.0,
+            "technology": "GSM 900",
+            "azimuth": 0.0,
+            "mechanical_tilt": 0.0,
+            "electrical_tilt": 0.0,
+            "antenna_type": "omnidirectional",
+            "pattern_file": "sector_65deg.json",
+            "horizontal_beamwidth": 65.0,
+            "vertical_beamwidth": 10.0,
+            "gain_dbi": 15.0,
+            "color": "#FF0000",
+            "visible": true,
+            "show_coverage": true,
+            "enabled": true,
+            "notes": ""
+        }
+    },
+    "simulation_config": {}
+}
