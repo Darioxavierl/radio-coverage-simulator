@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
+from pyproj import CRS as PyprojCRS
+
 
 class ExportManager:
     """Manager para exportar resultados de simulación en múltiples formatos"""
@@ -136,7 +138,7 @@ class ExportManager:
             self.logger.error(f"Error exporting metadata JSON: {e}")
             raise
 
-    def export_geotiff(self, results, filename):
+    def export_geotiff(self, results, filename, target_crs='EPSG:4326'):
         """
         Exporta como GeoTIFF multibanda georeferenciado
 
@@ -148,15 +150,20 @@ class ExportManager:
         Args:
             results: Dict con results de simulación
             filename: Ruta completa del archivo GeoTIFF
+            target_crs: CRS de salida (ej. 'EPSG:4326', 'EPSG:32717')
         """
         try:
             import rasterio
             from rasterio.transform import Affine
+            from rasterio.warp import calculate_default_transform, reproject, Resampling
         except ImportError:
             self.logger.error("rasterio not installed. Install: pip install rasterio")
             raise
 
         try:
+            # Validar CRS destino para evitar archivos corruptos
+            PyprojCRS.from_string(target_crs)
+
             # PHASE 7: Usar agregada si existe, si no usar primera antena individual
             if 'aggregated' in results:
                 self.logger.info("Exporting aggregated coverage to GeoTIFF")
@@ -186,25 +193,87 @@ class ExportManager:
                 0, -(north - south) / height, north
             )
 
+            # CRS y datos fuente (la grilla de simulación está en lat/lon WGS84)
+            source_crs = 'EPSG:4326'
+
+            # Reproyectar si el usuario selecciona un CRS diferente al de origen
+            if target_crs != source_crs:
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    source_crs,
+                    target_crs,
+                    width,
+                    height,
+                    west,
+                    south,
+                    east,
+                    north,
+                )
+
+                rsrp_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+                path_loss_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+                antenna_gain_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+
+                reproject(
+                    source=rsrp_2d,
+                    destination=rsrp_out,
+                    src_transform=transform,
+                    src_crs=source_crs,
+                    dst_transform=dst_transform,
+                    dst_crs=target_crs,
+                    resampling=Resampling.bilinear,
+                )
+                reproject(
+                    source=path_loss_2d,
+                    destination=path_loss_out,
+                    src_transform=transform,
+                    src_crs=source_crs,
+                    dst_transform=dst_transform,
+                    dst_crs=target_crs,
+                    resampling=Resampling.bilinear,
+                )
+                reproject(
+                    source=antenna_gain_2d,
+                    destination=antenna_gain_out,
+                    src_transform=transform,
+                    src_crs=source_crs,
+                    dst_transform=dst_transform,
+                    dst_crs=target_crs,
+                    resampling=Resampling.bilinear,
+                )
+
+                output_transform = dst_transform
+                output_crs = target_crs
+                output_height = dst_height
+                output_width = dst_width
+            else:
+                rsrp_out = rsrp_2d
+                path_loss_out = path_loss_2d
+                antenna_gain_out = antenna_gain_2d
+                output_transform = transform
+                output_crs = source_crs
+                output_height = height
+                output_width = width
+
             # Escribir GeoTIFF con 3 bandas
             with rasterio.open(
                 filename, 'w',
                 driver='GTiff',
-                height=height,
-                width=width,
+                height=output_height,
+                width=output_width,
                 count=3,  # 3 bandas
-                dtype=rsrp_2d.dtype,
-                crs='EPSG:4326',  # WGS84
-                transform=transform
+                dtype=np.float32,
+                crs=output_crs,
+                transform=output_transform
             ) as dst:
-                dst.write(rsrp_2d, 1)          # Banda 1: RSRP
-                dst.write(path_loss_2d, 2)     # Banda 2: Path Loss
-                dst.write(antenna_gain_2d, 3)  # Banda 3: Antenna Gain
+                dst.write(rsrp_out, 1)          # Banda 1: RSRP
+                dst.write(path_loss_out, 2)     # Banda 2: Path Loss
+                dst.write(antenna_gain_out, 3)  # Banda 3: Antenna Gain
 
                 # Agregar descripciones de bandas
                 dst.update_tags(1, DESCRIPTION='RSRP (dBm)')
                 dst.update_tags(2, DESCRIPTION='Path Loss (dB)')
                 dst.update_tags(3, DESCRIPTION='Antenna Gain (dBi)')
+                dst.update_tags(export_crs=output_crs, source_crs=source_crs)
 
             self.logger.info(f"GeoTIFF multibanda exportado: {filename}")
             return filename

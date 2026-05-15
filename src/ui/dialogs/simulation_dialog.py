@@ -55,6 +55,7 @@ class SimulationDialog(QDialog):
         self.model_combo.addItem("Free Space Path Loss", "free_space")
         self.model_combo.addItem("Okumura-Hata", "okumura_hata")
         self.model_combo.addItem("COST-231 Walfisch-Ikegami", "cost231")
+        self.model_combo.addItem("COST-231 Hata (4G LTE)", "cost231_hata")
         self.model_combo.addItem("ITU-R P.1546", "itu_p1546")
         self.model_combo.addItem("3GPP TR 38.901", "three_gpp_38901")
         self.model_combo.setCurrentIndex(0)  # Free Space por defecto
@@ -152,6 +153,39 @@ class SimulationDialog(QDialog):
         self.cost231_params_group.setLayout(cost231_layout)
         self.cost231_params_group.setVisible(False)  # Oculto por defecto
         layout.addWidget(self.cost231_params_group)
+
+        # Grupo de parámetros de COST-231 Hata (solo visible cuando se selecciona)
+        self.cost231_hata_params_group = QGroupBox("Parámetros de COST-231 Hata (4G LTE)")
+        cost231_hata_layout = QFormLayout()
+
+        # Tipo de ciudad
+        self.cost231_hata_city_type_combo = QComboBox()
+        self.cost231_hata_city_type_combo.addItem("Mediana (Medium)", "medium")
+        self.cost231_hata_city_type_combo.addItem("Grande (Large)", "large")
+        self.cost231_hata_city_type_combo.setCurrentIndex(0)
+        self.cost231_hata_city_type_combo.setToolTip("Tipo de ciudad: Medium (C_m=0 dB) o Large (C_m=3 dB)")
+        cost231_hata_layout.addRow("Tipo de ciudad:", self.cost231_hata_city_type_combo)
+
+        # Altura móvil
+        self.cost231_hata_mobile_height_spin = QDoubleSpinBox()
+        self.cost231_hata_mobile_height_spin.setRange(1.0, 10.0)
+        self.cost231_hata_mobile_height_spin.setValue(1.5)
+        self.cost231_hata_mobile_height_spin.setSingleStep(0.5)
+        self.cost231_hata_mobile_height_spin.setSuffix(" m")
+        self.cost231_hata_mobile_height_spin.setToolTip("Altura del receptor móvil (típicamente 1.5m para vehículos)")
+        cost231_hata_layout.addRow("Altura móvil:", self.cost231_hata_mobile_height_spin)
+
+        # Nota informativa
+        cost231_hata_note = QLabel("<small><i>Extensión de Okumura-Hata para 4G LTE (1500-2000 MHz). "
+                                   "Distancias óptimas 0.02-5km. "
+                                   "C_m=0 dB para ciudad mediana, C_m=3 dB para metrópoli.</i></small>")
+        cost231_hata_note.setWordWrap(True)
+        cost231_hata_note.setStyleSheet("color: #666; margin-top: 5px;")
+        cost231_hata_layout.addRow("", cost231_hata_note)
+
+        self.cost231_hata_params_group.setLayout(cost231_hata_layout)
+        self.cost231_hata_params_group.setVisible(False)  # Oculto por defecto
+        layout.addWidget(self.cost231_hata_params_group)
 
         # Grupo de parámetros de ITU-R P.1546 (solo visible cuando se selecciona)
         self.itu_p1546_params_group = QGroupBox("Parámetros de ITU-R P.1546")
@@ -319,6 +353,7 @@ class SimulationDialog(QDialog):
         model_key = self.model_combo.currentData()
         self.okumura_params_group.setVisible(model_key == 'okumura_hata')
         self.cost231_params_group.setVisible(model_key == 'cost231')
+        self.cost231_hata_params_group.setVisible(model_key == 'cost231_hata')
         self.itu_p1546_params_group.setVisible(model_key == 'itu_p1546')
         self.three_gpp_params_group.setVisible(model_key == 'three_gpp_38901')
 
@@ -348,6 +383,9 @@ class SimulationDialog(QDialog):
                       'Análisis de difracción Walfisch-Ikegami. '
                       'Válido para frecuencias 800-2000 MHz, distancias 20m-5km. '
                       'Considera altura de edificios, ancho de calles y orientación.',
+            'cost231_hata': 'Extensión de Okumura-Hata optimizada para 4G LTE. '
+                           'Válido para frecuencias 1500-2000 MHz y distancias 0.02-5km. '
+                           'Ecuación base 46.3 dB (vs 69.55 dB en OH). Parámetro C_m para tipo de ciudad.',
             'itu_p1546': 'Modelo point-to-area empírico ITU-R. '
                         'Válido para frecuencias 30-4000 MHz y distancias 1-1000 km. '
                         'LOS/NLOS determinado automáticamente. Aplicable a radiodifusión, móviles y punto fijo.',
@@ -378,6 +416,11 @@ class SimulationDialog(QDialog):
             config['building_height'] = self.building_height_spin.value()
             config['street_width'] = self.street_width_spin.value()
             config['street_orientation'] = self.street_orientation_spin.value()
+
+        # Agregar parámetros de COST-231 Hata si está seleccionado
+        if self.model_combo.currentData() == 'cost231_hata':
+            config['city_type'] = self.cost231_hata_city_type_combo.currentData()
+            config['mobile_height'] = self.cost231_hata_mobile_height_spin.value()
 
         # Agregar parámetros de ITU-R P.1546 si está seleccionado
         if self.model_combo.currentData() == 'itu_p1546':

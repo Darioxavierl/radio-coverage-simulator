@@ -25,6 +25,7 @@ class MapBridge(QObject):
     #add_coverage_layer = pyqtSignal(str, str)  # antenna_id, geotiff_data_url
     add_coverage_layer = pyqtSignal(str, str, float, float, float, float) 
     remove_coverage_layer = pyqtSignal(str)
+    update_coverage_legend = pyqtSignal(float, float)  # vmin_dBm, vmax_dBm
     set_map_mode = pyqtSignal(str)
     center_map = pyqtSignal(float, float, int)
     clear_all_markers = pyqtSignal()
@@ -136,6 +137,43 @@ class MapWidget(QWidget):
         .coverage-layer {
             opacity: 0.6;
         }
+        #coverage-legend {
+            background: white;
+            padding: 8px 10px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,.35);
+            font: 12px/1.4 Arial, sans-serif;
+            display: none;
+            min-width: 72px;
+            pointer-events: none;
+        }
+        #coverage-legend .leg-title {
+            font-weight: bold;
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        #coverage-legend .leg-wrap {
+            display: flex;
+            align-items: stretch;
+            height: 130px;
+        }
+        #coverage-legend .leg-bar {
+            width: 18px;
+            background: linear-gradient(to top,
+                #00007f, #0000ff, #007fff, #00ffff,
+                #7fff7f, #ffff00, #ff7f00, #ff0000, #7f0000);
+            border-radius: 2px;
+            margin-right: 5px;
+        }
+        #coverage-legend .leg-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #444;
+        }
     </style>
 </head>
 <body>
@@ -149,6 +187,7 @@ class MapWidget(QWidget):
         let antennaMarkers = {};
         let coverageLayers = {};
         let selectedMarker = null;
+        let legendControl = null;
         
         // Inicializar mapa
         function initMap() {
@@ -361,6 +400,41 @@ class MapWidget(QWidget):
             coverageLayers = {};
         }
         
+        // ===== Leyenda de cobertura (RSRP) =====
+        
+        function getLegendHTML(vmin, mid, vmax) {
+            return '<div class="leg-title">RSRP [dBm]</div>'
+                 + '<div class="leg-wrap">'
+                 +   '<div class="leg-bar"></div>'
+                 +   '<div class="leg-labels">'
+                 +     '<span>' + vmax + '</span>'
+                 +     '<span>' + mid  + '</span>'
+                 +     '<span>' + vmin + '</span>'
+                 +   '</div>'
+                 + '</div>';
+        }
+        
+        function updateCoverageLegend(vmin, vmax) {
+            const mid = Math.round((vmin + vmax) / 2);
+            const html = getLegendHTML(Math.round(vmin), mid, Math.round(vmax));
+            
+            if (!legendControl) {
+                legendControl = L.control({ position: 'bottomright' });
+                legendControl.onAdd = function() {
+                    const div = L.DomUtil.create('div', '');
+                    div.id = 'coverage-legend';
+                    return div;
+                };
+                legendControl.addTo(map);
+            }
+            
+            const el = document.getElementById('coverage-legend');
+            if (el) {
+                el.innerHTML = html;
+                el.style.display = 'block';
+            }
+        }
+        
         // Obtener centro del mapa
         function getMapCenter() {
             const center = map.getCenter();
@@ -378,6 +452,7 @@ class MapWidget(QWidget):
             bridge.update_antenna_marker.connect(updateAntennaMarker);
             bridge.add_coverage_layer.connect(addCoverageLayer);
             bridge.remove_coverage_layer.connect(removeCoverageLayer);
+            bridge.update_coverage_legend.connect(updateCoverageLegend);
             bridge.set_map_mode.connect(setMapMode);
             bridge.center_map.connect(centerMap);
             bridge.clear_all_markers.connect(clearAllMarkers);
@@ -432,6 +507,12 @@ class MapWidget(QWidget):
                 bounds[0][0], bounds[0][1],  # lat_min, lon_min
                 bounds[1][0], bounds[1][1]   # lat_max, lon_max
             )
+            # Actualizar leyenda con el rango real de esta simulación
+            if 'rsrp_vmin' in coverage_data and 'rsrp_vmax' in coverage_data:
+                self.bridge.update_coverage_legend.emit(
+                    float(coverage_data['rsrp_vmin']),
+                    float(coverage_data['rsrp_vmax'])
+                )
 
     def show_coverage1(self, antenna_id: str, coverage_data: np.ndarray):
         """Muestra capa de cobertura para una antena"""

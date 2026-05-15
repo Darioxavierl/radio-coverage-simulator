@@ -94,11 +94,31 @@ class SimulationWorker(QObject):
                 base_model_params['environment'] = self.config.get('environment', 'Urban')
                 base_model_params['city_type'] = self.config.get('city_type', 'medium')
                 base_model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
+                base_model_params['terrain_reference_method'] = self.config.get(
+                    'terrain_reference_method',
+                    'global_mean'
+                )
+                base_model_params['terrain_reference_inner_km'] = self.config.get(
+                    'terrain_reference_inner_km',
+                    3.0
+                )
+                base_model_params['terrain_reference_outer_km'] = self.config.get(
+                    'terrain_reference_outer_km',
+                    15.0
+                )
+                base_model_params['terrain_min_samples'] = self.config.get(
+                    'terrain_min_samples',
+                    50
+                )
 
             elif self.config.get('model') == 'cost231':
                 base_model_params['building_height'] = self.config.get('building_height', 15.0)
                 base_model_params['street_width'] = self.config.get('street_width', 12.0)
                 base_model_params['street_orientation'] = self.config.get('street_orientation', 0.0)
+
+            elif self.config.get('model') == 'cost231_hata':
+                base_model_params['city_type'] = self.config.get('city_type', 'medium')
+                base_model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
 
             elif self.config.get('model') == 'itu_p1546':
                 base_model_params['environment'] = self.config.get('environment', 'Urban')
@@ -148,6 +168,7 @@ class SimulationWorker(QObject):
                     model=model,
                     model_params=model_params,
                     return_details=True,
+                    terrain_loader=self.terrain_loader,
                 )
                 coverage_calc_time = time.perf_counter() - coverage_start  # NUEVA: Timing coverage calc
                 antenna_coverage_times[antenna.id] = round(coverage_calc_time, 3)
@@ -168,11 +189,22 @@ class SimulationWorker(QObject):
                 render_start = time.perf_counter()  # NUEVA: Checkpoint inicio render
                 heatmap_gen = HeatmapGenerator()
 
+                # Rango dinámico: basado en los datos reales con márgenes fijos de referencia
+                valid_rsrp = rsrp_numpy[np.isfinite(rsrp_numpy)]
+                if len(valid_rsrp) > 0:
+                    _vmin = max(float(np.percentile(valid_rsrp, 5)), -120)
+                    _vmax = min(float(np.percentile(valid_rsrp, 95)), -20)
+                    # Garantizar al menos 20 dB de rango visible
+                    if _vmax - _vmin < 20:
+                        _vmin = _vmax - 20
+                else:
+                    _vmin, _vmax = -120, -60
+
                 image_url = heatmap_gen.generate_heatmap_image(
                     rsrp_numpy,
                     colormap='jet',
-                    vmin=-120,
-                    vmax=-60,
+                    vmin=_vmin,
+                    vmax=_vmax,
                     alpha=0.6
                 )
                 render_time = time.perf_counter() - render_start  # NUEVA: Timing render
@@ -193,6 +225,8 @@ class SimulationWorker(QObject):
                         'tx_height_m': antenna.height_agl,
                     },
                     'image_url': image_url,
+                    'rsrp_vmin': _vmin,
+                    'rsrp_vmax': _vmax,
                     'bounds': [
                         [grid_lats.min(), grid_lons.min()],
                         [grid_lats.max(), grid_lons.max()]
@@ -225,13 +259,22 @@ class SimulationWorker(QObject):
                     model_params=model_params
                 )
 
-                # Generar heatmap agregado
+                # Generar heatmap agregado con rango dinámico
                 heatmap_gen = HeatmapGenerator()
+                agg_rsrp = aggregated_results['rsrp']
+                agg_valid = agg_rsrp[np.isfinite(agg_rsrp)]
+                if len(agg_valid) > 0:
+                    _agg_vmin = max(float(np.percentile(agg_valid, 5)), -120)
+                    _agg_vmax = min(float(np.percentile(agg_valid, 95)), -20)
+                    if _agg_vmax - _agg_vmin < 20:
+                        _agg_vmin = _agg_vmax - 20
+                else:
+                    _agg_vmin, _agg_vmax = -120, -60
                 aggregated_image = heatmap_gen.generate_heatmap_image(
-                    aggregated_results['rsrp'],
+                    agg_rsrp,
                     colormap='jet',
-                    vmin=-120,
-                    vmax=-60,
+                    vmin=_agg_vmin,
+                    vmax=_agg_vmax,
                     alpha=0.6
                 )
 
@@ -239,11 +282,13 @@ class SimulationWorker(QObject):
                     'lats': grid_lats,
                     'lons': grid_lons,
                     'image_url': aggregated_image,
+                    'rsrp_vmin': _agg_vmin,
+                    'rsrp_vmax': _agg_vmax,
                     'bounds': [
                         [grid_lats.min(), grid_lons.min()],
                         [grid_lats.max(), grid_lons.max()]
                     ],
-                    'rsrp': aggregated_results['rsrp'],
+                    'rsrp': agg_rsrp,
                     'best_server': aggregated_results['best_server']
                 }
 
@@ -388,6 +433,14 @@ class SimulationWorker(QObject):
                 okumura_config['city_type'] = self.config['city_type']
             if 'mobile_height' in self.config:
                 okumura_config['mobile_height'] = self.config['mobile_height']
+            if 'terrain_reference_method' in self.config:
+                okumura_config['terrain_reference_method'] = self.config['terrain_reference_method']
+            if 'terrain_reference_inner_km' in self.config:
+                okumura_config['terrain_reference_inner_km'] = self.config['terrain_reference_inner_km']
+            if 'terrain_reference_outer_km' in self.config:
+                okumura_config['terrain_reference_outer_km'] = self.config['terrain_reference_outer_km']
+            if 'terrain_min_samples' in self.config:
+                okumura_config['terrain_min_samples'] = self.config['terrain_min_samples']
 
             self.logger.info(f"Okumura-Hata config: {okumura_config}")
 
@@ -416,6 +469,34 @@ class SimulationWorker(QObject):
             self.logger.info(f"COST-231 config: {cost231_config}")
 
             return COST231WalfischIkegamiModel(config=cost231_config, compute_module=self.calculator.xp)
+
+        elif model_name == 'cost231_hata':
+            from core.models.traditional.cost231_hata import COST231HataModel
+
+            # Extraer parámetros de COST-231 Hata desde config
+            cost231_hata_config = {}
+            if 'city_type' in self.config:
+                cost231_hata_config['city_type'] = self.config['city_type']
+            else:
+                cost231_hata_config['city_type'] = 'medium'
+
+            if 'mobile_height' in self.config:
+                cost231_hata_config['mobile_height'] = self.config['mobile_height']
+            else:
+                cost231_hata_config['mobile_height'] = 1.5
+
+            if 'terrain_reference_method' in self.config:
+                cost231_hata_config['terrain_reference_method'] = self.config['terrain_reference_method']
+            if 'terrain_reference_inner_km' in self.config:
+                cost231_hata_config['terrain_reference_inner_km'] = self.config['terrain_reference_inner_km']
+            if 'terrain_reference_outer_km' in self.config:
+                cost231_hata_config['terrain_reference_outer_km'] = self.config['terrain_reference_outer_km']
+            if 'terrain_min_samples' in self.config:
+                cost231_hata_config['terrain_min_samples'] = self.config['terrain_min_samples']
+
+            self.logger.info(f"COST-231 Hata config: {cost231_hata_config}")
+
+            return COST231HataModel(config=cost231_hata_config, compute_module=self.calculator.xp)
 
         elif model_name == 'itu_p1546':
             from core.models.traditional.itu_r_p1546 import ITUR_P1546Model

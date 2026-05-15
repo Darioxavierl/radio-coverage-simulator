@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QToolBar, QStatusBar, QDockWidget, QMessageBox,
-                             QFileDialog, QProgressBar, QLabel)
+                             QFileDialog, QProgressBar, QLabel, QInputDialog)
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QActionGroup
 from datetime import datetime
@@ -822,16 +822,44 @@ class MainWindow(QMainWindow):
                                           f"Archivos creados:\n{filename}\n{filename.replace('.csv', '_metadata.json')}")
 
             elif format_type == 'geotiff':
+                crs_options = [
+                    "WGS84 (EPSG:4326)",
+                    "WGS84 / UTM zone 17S (EPSG:32717)",
+                    "WGS84 / UTM zone 18S (EPSG:32718)",
+                ]
+                selected_crs_label, ok = QInputDialog.getItem(
+                    self,
+                    "CRS de exportación",
+                    "Seleccione el CRS destino para el GeoTIFF:",
+                    crs_options,
+                    0,
+                    False,
+                )
+
+                if not ok:
+                    return
+
+                crs_map = {
+                    "WGS84 (EPSG:4326)": "EPSG:4326",
+                    "WGS84 / UTM zone 17S (EPSG:32717)": "EPSG:32717",
+                    "WGS84 / UTM zone 18S (EPSG:32718)": "EPSG:32718",
+                }
+                target_crs = crs_map[selected_crs_label]
+
                 # Dialog para guardar GeoTIFF
                 filename, _ = QFileDialog.getSaveFileName(
                     self, "Exportar como GeoTIFF", f"data/exports/{base_name}.tif",
                     "GeoTIFF Files (*.tif)"
                 )
                 if filename:
-                    exporter.export_geotiff(results, filename)
-                    self.status_label.setText("Resultados exportados a GeoTIFF")
+                    exporter.export_geotiff(results, filename, target_crs=target_crs)
+                    self.status_label.setText(f"Resultados exportados a GeoTIFF ({target_crs})")
                     self.logger.info(f"Export complete: {filename}")
-                    QMessageBox.information(self, "Exportación completada", f"Archivo: {filename}")
+                    QMessageBox.information(
+                        self,
+                        "Exportación completada",
+                        f"Archivo: {filename}\nCRS: {target_crs}",
+                    )
 
             elif format_type == 'kml':
                 # Dialog para guardar KML
