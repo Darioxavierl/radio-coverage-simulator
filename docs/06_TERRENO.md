@@ -575,3 +575,11 @@ Notas de implementación:
 ---
 
 **Ver también**: [02_CORE_COMPUTE.md](02_CORE_COMPUTE.md), [09_PIPELINE_SIMULACION_FLUJO.md](09_PIPELINE_SIMULACION_FLUJO.md)
+
+---
+
+## Subsistema LOS: LOSCalculator
+
+El método `get_radial_profiles(tx_lat, tx_lon, rx_lats, rx_lons, n_samples)` es la base del cálculo de visibilidad directa. `LOSCalculator` (en `src/utils/los_calculator.py`) lo consume para determinar, por cada punto de la grilla, si la línea de visión TX→RX está interceptada por el terreno.
+
+Ver documentación completa del algoritmo: [06A_LOS_CALCULATOR.md](06A_LOS_CALCULATOR.md)

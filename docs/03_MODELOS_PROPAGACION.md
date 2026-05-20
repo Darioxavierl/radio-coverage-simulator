@@ -322,12 +322,48 @@ CoverageCalculator._calculate_path_loss()
               └─ [opcional] + terrain_correction (Fresnel aprox.)
 
     ↓
-rsrp = P_tx + G_tx − path_loss   [dBm]
+    _apply_antenna_pattern()          ← correccion independiente del modelo
+    G_antena(φ, θ) = G_max + A_H(φ) + A_V(θ)  [patron 3D]
+
+    ↓
+rsrp = P_tx + G_antena(φ, θ) − path_loss   [dBm]
 ```
+
+> **Independencia del patron de antena:** La correccion de ganancia azimutal y vertical se aplica identicamente sobre cualquier modelo de propagacion. El modelo calcula cuanto atenua el medio; el patron de antena calcula cuanto atenua la direccion. Se combinan de forma aditiva en dBm.
 
 ---
 
-## 12. Documentación Detallada de Cada Modelo
+## 12. Patron de Radiacion de Antena
+
+### 12.1 Fundamento y universalidad
+
+El patron de antena modela como el hardware distribuye la potencia en el espacio. Las ecuaciones son la aproximacion gaussiana del estandar **3GPP TR 38.901 \u00a77.3.2**, equivalente a la de 3GPP TR 36.814 (LTE, 2010) e ITU-R M.2135 (2009). No son exclusivas de 5G; el estandar 3GPP es la referencia canonica para la misma formula que aplica a cualquier tipo de antena sectorial o direccional.
+
+### 12.2 Patron horizontal
+
+$$A_H(\phi) = -\min\!\left[12\left(\frac{\phi}{\phi_{3dB}}\right)^2,\ 30\right] \text{ dB}$$
+
+- $\phi$: angulo azimutal entre el punto receptor y el azimuth de la antena
+- $\phi_{3dB}$: `horizontal_beamwidth` — apertura a −3 dB (HPBW completo)
+- Para omnidireccional: $A_H = 0$ dB
+
+### 12.3 Patron vertical
+
+$$A_V(\theta) = -\min\!\left[12\left(\frac{\theta - \theta_{tilt}}{\theta_{3dB}}\right)^2,\ 30\right] \text{ dB}$$
+
+- $\theta = \arctan(\Delta h / d_{2D})$: angulo de elevacion TX→RX (positivo = RX por debajo del TX)
+- $\theta_{tilt} = \theta_{mech} + \theta_{elec}$: tilt efectivo total
+- $\theta_{3dB}$: `vertical_beamwidth`
+
+### 12.4 Patron total 3D
+
+$$G(\phi, \theta) = G_{max} - \min\!\left[-(A_H(\phi) + A_V(\theta)),\ 30\right] \text{ dB}$$
+
+Implementado en `CoverageCalculator._apply_antenna_pattern()`. Requiere `distances` y `terrain_heights` para el patron vertical; si no se proporcionan, aplica solo $A_H$ (modo retrocompatible).
+
+---
+
+## 13. Documentación Detallada de Cada Modelo
 
 | Documento | Modelo | Contenido |
 |-----------|--------|-----------|

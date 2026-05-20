@@ -344,7 +344,13 @@ def calculate_single_antenna_coverage(self, antenna, grid_lats, grid_lons,
         )
     # path_loss shape: (100, 100), dtype: float64
     
-    # 4. Calcular ganancia de antena (patrón de radiación)
+    # 4. Calcular ganancia de antena (patrón 3D horizontal + vertical)
+    # Formula 3GPP TR 38.901 §7.3.2 (valida para todos los modelos de propagacion):
+    #   A_H(φ) = -min[ 12·(φ / φ_3dB)², 30 dB ]    (φ_3dB = horizontal_beamwidth)
+    #   A_V(θ) = -min[ 12·((θ - θ_tilt) / θ_3dB)², 30 dB ]  (θ_3dB = vertical_beamwidth)
+    #   G(φ,θ) = G_max - min[ -(A_H + A_V), 30 dB ]
+    #   θ_tilt = mechanical_tilt + electrical_tilt
+    #   Para omnidireccional: A_H = A_V = 0 dB
     antenna_gain = self._calculate_antenna_gain(
         antenna,
         grid_lats, grid_lons

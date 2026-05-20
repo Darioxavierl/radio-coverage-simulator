@@ -81,7 +81,32 @@ class MapBridge(QObject):
     update_coverage_legend = pyqtSignal(float, float)
     # Parámetros: vmin_dBm, vmax_dBm (rango dinámico percentil 5/95 usado en el colormap)
     # Ejemplo: bridge.update_coverage_legend.emit(-95.3, -52.1)
-    
+
+    # Agregar capa LOS (mapa de ocultamiento por terreno)
+    add_los_layer = pyqtSignal(str, str, float, float, float, float)
+    # Parámetros: antenna_id, image_data_url (base64), lat_min, lon_min, lat_max, lon_max
+    # La capa se agrega al control Leaflet pero inicia OCULTA; usuario la activa
+    # desde el panel de capas (L.control.layers)
+
+    # Registrar nombre de display de una capa de overlay
+    register_layer_name = pyqtSignal(str, str)
+    # Parámetros: antenna_id, display_name
+    # Utilizado para mostrar nombres legibles ("RSRP: Sitio A", "LOS: Sitio A")
+    # en el panel de capas Leaflet
+
+    # Agregar capa RSRP oculta (disponible en panel de capas, no visible en mapa)
+    add_hidden_coverage_layer = pyqtSignal(str, str, float, float, float, float)
+    # Parámetros: antenna_id, image_data_url (base64), lat_min, lon_min, lat_max, lon_max
+    # Diferencia con add_coverage_layer: la imageOverlay NO se añade al mapa con .addTo(map)
+    # El checkbox en el panel de Leaflet aparece desmarcado
+
+    # Guardar rango RSRP por antena para la leyenda dinámica
+    store_rsrp_range = pyqtSignal(str, float, float)
+    # Parámetros: antenna_id, vmin_dBm, vmax_dBm
+    # Almacena en JS: rsrpRanges[antennaId] = { vmin, vmax }
+    # El dict rsrpRanges es consultado por el listener overlayadd
+    # para mostrar la leyenda correcta cuando el usuario activa una capa individual
+
     # Cambiar modo del mapa
     set_map_mode = pyqtSignal(str)
     # Parámetro: 'pan' (normal) | 'add_antenna' (agregar antena) | 'move_antenna' (mover)
@@ -399,6 +424,23 @@ class MapBridge(QObject):
             bridge.update_coverage_legend.connect(function(vmin, vmax) {
                 updateCoverageLegend(vmin, vmax);
             });
+
+            bridge.add_los_layer.connect(function(id, img, lat_min, lon_min, lat_max, lon_max) {
+                addLOSLayer(id, img, lat_min, lon_min, lat_max, lon_max);
+            });
+
+            bridge.register_layer_name.connect(function(id, name) {
+                setLayerName(id, name);
+            });
+
+            bridge.add_hidden_coverage_layer.connect(function(id, img, lat_min, lon_min, lat_max, lon_max) {
+                addHiddenCoverageLayer(id, img, lat_min, lon_min, lat_max, lon_max);
+            });
+
+            bridge.store_rsrp_range.connect(function(id, vmin, vmax) {
+                storeRsrpRange(id, vmin, vmax);
+            });
+            });
             
             bridge.set_map_mode.connect(function(mode) {
                 currentMode = mode;
@@ -577,9 +619,13 @@ class MainWindow(QMainWindow):
 ├─────────────────────────────────────────────┤
 │ {                                           │
 │   'individual': {                           │
-│     'ant-001': {'image_url', 'bounds', ...} │
+│     'ant-001': {'image_url', 'bounds',      │
+│       'rsrp_vmin', 'rsrp_vmax',             │
+│       'los_map', 'los_image_url', ...}      │
 │   },                                        │
-│   'aggregated': {'image_url', 'bounds', ...}│
+│   'aggregated': {'image_url', 'bounds',     │
+│     'rsrp_vmin', 'rsrp_vmax',               │
+│     'los_map', 'los_image_url', ...}        │
 │ }                                           │
 └─────────────────────────────────────────────┘
              │

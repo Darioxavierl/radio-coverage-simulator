@@ -199,9 +199,12 @@ Cada antena nueva recibe valores por defecto que se pueden ajustar despues.
 | Potencia de transmision (Tx) | Potencia total en la salida | dBm |
 | Altura sobre el suelo (AGL) | Altura fisica de la antena | metros |
 | Ganancia | Ganancia de la antena | dBi |
-| Azimuth | Orientacion horizontal principal | grados (0=Norte) |
-| Beamwidth horizontal | Apertura del haz horizontal | grados |
-| Tipo | Omnidireccional o sectorial | — |
+| Azimuth | Orientacion del lobulo principal en el plano horizontal. 0 = Norte, 90 = Este, 180 = Sur, 270 = Oeste. Afecta la simulacion. | grados (0=Norte) |
+| Beamwidth horizontal | Apertura del lobulo a −3 dB en el plano horizontal. Controla cuanto se atenua la senal fuera del frente de la antena. Afecta la simulacion. | grados |
+| Beamwidth vertical | Apertura del lobulo a −3 dB en el plano vertical. Afecta la simulacion. | grados |
+| Tilt mecanico | Inclinacion fisica de la antena hacia abajo (positivo = downtilt). Afecta la simulacion. | grados |
+| Tilt electrico | Inclinacion electronica del haz (RET). Se suma al tilt mecanico para el tilt efectivo total. Afecta la simulacion. | grados |
+| Tipo | Omnidireccional (sin variacion azimutal ni vertical) o sectorial/direccional | — |
 
 4. Hacer clic en **Aceptar** para guardar los cambios.
 

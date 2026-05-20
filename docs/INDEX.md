@@ -111,6 +111,13 @@ Este documento sirve como índice maestro para la documentación técnica del si
   - Integración con CoverageCalculator
   - Caché de alturas
   - Integración con 3GPP Modo 2 (ITU-R P.526 knife-edge)
+- [06A_LOS_CALCULATOR.md](06A_LOS_CALCULATOR.md): **NUEVO**
+  - Cálculo geométrico de visibilidad directa (LOS) sobre DEM
+  - Fundamento matemático: línea paramétrica z_los(t) = z_tx + t·(z_rx − z_tx)
+  - Criterio de bloqueo NLOS vectorizado (NumPy)
+  - generate_los_image(): colores verde/naranja
+  - Integración con SimulationWorker (por antena + agregado max)
+  - Limitaciones conocidas
 
 ---
 

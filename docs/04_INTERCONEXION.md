@@ -344,6 +344,10 @@ class SimulationWorker(QObject):
                     )
                 results['individual'][ant_id]['rsrp_vmin'] = _vmin
                 results['individual'][ant_id]['rsrp_vmax'] = _vmax
+                # LOS: mapa de ocultamiento por terreno (ndarray float32 H,W)
+                # Se calcula mediante LOSCalculator.compute_los_map() para cada antena
+                results['individual'][ant_id]['los_map']        = los_map
+                results['individual'][ant_id]['los_image_url']  = los_image_url
 
             agg_valid = rsrp_aggregated[np.isfinite(rsrp_aggregated)]
             _agg_vmin = max(float(np.percentile(agg_valid, 5)), -120) if len(agg_valid) > 0 else -120
@@ -356,6 +360,9 @@ class SimulationWorker(QObject):
             results['aggregated']['image_url'] = image_url
             results['aggregated']['rsrp_vmin'] = _agg_vmin
             results['aggregated']['rsrp_vmax'] = _agg_vmax
+            # LOS agregado: union (pixel visible desde al menos 1 antena)
+            results['aggregated']['los_map']        = agg_los_map
+            results['aggregated']['los_image_url']  = agg_los_image_url
             
             # 9. Guardar metadata
             self.progress.emit(95)

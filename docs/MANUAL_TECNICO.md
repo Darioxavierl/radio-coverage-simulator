@@ -276,7 +276,39 @@ $R = 6\,371\,000$ m (radio terrestre), $\phi$ = latitud en radianes, $\lambda$ =
 
 La implementacion usa `self.xp.sin`, `self.xp.cos`, `self.xp.arctan2` para que opere en GPU o CPU segun el backend activo.
 
-### 6.5 Agregacion multiantena
+### 6.5 Patron de radiacion de antena (3D)
+
+El patron de radiacion es una correccion de ganancia en dB aplicada **independientemente del modelo de propagacion** seleccionado. El modelo de propagacion describe como el medio (urbano, rural, terreno) atenua la onda; el patron de antena describe como el hardware distribuye su energia en el espacio. Fenomenos fisicos distintos que se combinan de forma aditiva:
+
+$$\text{RSRP} = P_{tx} + G_{antena}(\phi,\theta) - \text{PathLoss}(d, f, \text{entorno})$$
+
+Las ecuaciones provienen de **3GPP TR 38.901 \u00a77.3.2** (equivalentes a 3GPP TR 36.814 LTE/4G e ITU-R M.2135). Son validas para cualquier modelo de propagacion porque el patron es una propiedad del hardware de la antena, no del medio.
+
+**Implementacion:** `CoverageCalculator._apply_antenna_pattern()` en `src/core/coverage_calculator.py`.
+
+#### Patron horizontal
+
+$$A_H(\phi) = -\min\!\left[12\left(\frac{\phi}{\phi_{3dB}}\right)^2,\ 30\right] \text{ dB}$$
+
+- $\phi$: angulo azimutal relativo al azimuth de la antena [\u00b0]
+- $\phi_{3dB}$: `horizontal_beamwidth` \u2014 apertura a \u22123 dB [\u00b0]
+- Para omnidireccional: $A_H = 0$ dB
+
+#### Patron vertical
+
+$$A_V(\theta) = -\min\!\left[12\left(\frac{\theta - \theta_{tilt}}{\theta_{3dB}}\right)^2,\ 30\right] \text{ dB}$$
+
+- $\theta = \arctan(\Delta h / d_{2D})$: angulo de elevacion TX\u2192RX [\u00b0], positivo cuando RX esta por debajo del TX
+- $\theta_{tilt} = \theta_{mech} + \theta_{elec}$: tilt efectivo total (`mechanical_tilt + electrical_tilt`)
+- $\theta_{3dB}$: `vertical_beamwidth` [\u00b0]
+
+#### Patron total 3D
+
+$$G(\phi, \theta) = G_{max} - \min\!\left[-(A_H(\phi) + A_V(\theta)),\ 30\right] \text{ dB}$$
+
+Si no se pasan datos de terreno y distancia, la funcion aplica solo el patron horizontal (modo retrocompatible).
+
+### 6.6 Agregacion multiantena
 
 Para despliegues de mas de una antena, la agregacion determina el mejor servidor en cada pixel:
 

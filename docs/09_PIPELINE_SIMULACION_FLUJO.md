@@ -23,8 +23,9 @@ graph TD
     J -->|"rsrp_agg,<br/>best_server"| K
     K -->|"timestamp,<br/>gpu_used, timings"| L["Emit Finished"]
     L -->|"results dict"| M["MainWindow<br/>_on_simulation_finished"]
-    M -->|"image_url,<br/>bounds"| N["MapWidget<br/>add_coverage_layer"]
-    N -->|"User sees<br/>heatmap on map"| O["Visualization<br/>Complete"]
+    M -->|"show_coverage(id, data,<br/>visible_rsrp=False)"| N["MapWidget: registrar<br/>capas individuales ocultas"]
+    N -->|"show_coverage('aggregated',<br/>data, visible_rsrp=True)"| P["MapWidget: mostrar<br/>capa agregada visible"]
+    P -->|"User sees<br/>heatmap on map"| O["Visualization<br/>Complete"]
 ```
 
 ## 3. Paso 0: Entrada - Configuración de Usuario
@@ -386,6 +387,8 @@ Resultados:
                     [float(grid_lats.min()), float(grid_lons.min())],
                     [float(grid_lats.max()), float(grid_lons.max())],
                 ],
+                'los_map': los_map,            # ndarray float32 (H,W): 1=LOS, 0=sombra
+                'los_image_url': los_image_url, # PNG base64 verde/naranja
             }
             
             # Timing
@@ -549,6 +552,8 @@ Mismo con CPU: ~5000 ms (6× más lento)
                     [float(grid_lats.min()), float(grid_lons.min())],
                     [float(grid_lats.max()), float(grid_lons.max())],
                 ],
+                'los_map': agg_los_map,            # union de LOS individuales
+                'los_image_url': agg_los_image_url, # PNG base64 verde/naranja
             }
         
         else:
@@ -648,6 +653,8 @@ results = {
             'rsrp_vmin': -95.3,   # percentil 5 real (dinámico)
             'rsrp_vmax': -52.1,   # percentil 95 real (dinámico)
             'bounds': [[lat_min, lon_min], [lat_max, lon_max]],
+            'los_map': (100, 100),               # float32: 1=LOS, 0=sombra
+            'los_image_url': "data:image/png;base64,...",
         },
         'ant-002': {...},
         'ant-003': {...},
@@ -663,6 +670,8 @@ results = {
         'rsrp_vmin': -97.1,   # percentil 5 real del agregado
         'rsrp_vmax': -50.4,   # percentil 95 real del agregado
         'bounds': [[lat_min, lon_min], [lat_max, lon_max]],
+        'los_map': (100, 100),               # union de mapas LOS individuales
+        'los_image_url': "data:image/png;base64,...",
     },
     'metadata': {
         'timestamp': '2026-05-08T15:32:45.123456',
