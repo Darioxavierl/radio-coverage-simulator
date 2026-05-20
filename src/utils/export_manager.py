@@ -36,6 +36,15 @@ class ExportManager:
                     'rsrp_dbm', 'path_loss_db', 'antenna_gain_dbi',
                     'model_used', 'environment', 'terrain_type'
                 ]
+
+                # Detectar si algún resultado incluye mapa LOS
+                has_los = any(
+                    cov.get('los_map') is not None
+                    for cov in results['individual'].values()
+                )
+                if has_los:
+                    header.append('los_nlos')
+
                 writer.writerow(header)
 
                 # Obtener metadata
@@ -50,8 +59,17 @@ class ExportManager:
                     path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
                     antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
 
-                    for lat, lon, r, pl, ag in zip(lats, lons, rsrp, path_loss, antenna_gain):
-                        writer.writerow([
+                    # Preparar valores LOS por punto
+                    los_map = coverage.get('los_map')
+                    if has_los and los_map is not None:
+                        los_iter = [int(round(float(v))) for v in los_map.flatten()]
+                    else:
+                        los_iter = [''] * len(lats)
+
+                    for lat, lon, r, pl, ag, los_val in zip(
+                        lats, lons, rsrp, path_loss, antenna_gain, los_iter
+                    ):
+                        row = [
                             antenna_id,
                             antenna_info.get('frequency_mhz', ''),
                             antenna_info.get('tx_power_dbm', ''),
@@ -64,7 +82,10 @@ class ExportManager:
                             metadata.get('model_used', 'unknown'),
                             model_params.get('environment', 'N/A'),
                             model_params.get('terrain_type', 'N/A')
-                        ])
+                        ]
+                        if has_los:
+                            row.append(los_val)
+                        writer.writerow(row)
 
             self.logger.info(f"CSV exported: {csv_file}")
             return csv_file
@@ -180,6 +201,11 @@ class ExportManager:
             path_loss_2d = coverage.get('path_loss', np.zeros_like(rsrp_2d)).astype(np.float32)
             antenna_gain_2d = coverage.get('antenna_gain', np.zeros_like(rsrp_2d)).astype(np.float32)
 
+            # LOS band (opcional, retrocompatible)
+            los_2d_raw = coverage.get('los_map')
+            has_los = los_2d_raw is not None
+            los_2d = los_2d_raw.astype(np.float32) if has_los else None
+
             # Crear transform para georeferenciación
             west = float(lons_2d.min())
             east = float(lons_2d.max())
@@ -241,6 +267,19 @@ class ExportManager:
                     resampling=Resampling.bilinear,
                 )
 
+                los_out = None
+                if has_los:
+                    los_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+                    reproject(
+                        source=los_2d,
+                        destination=los_out,
+                        src_transform=transform,
+                        src_crs=source_crs,
+                        dst_transform=dst_transform,
+                        dst_crs=target_crs,
+                        resampling=Resampling.nearest,
+                    )
+
                 output_transform = dst_transform
                 output_crs = target_crs
                 output_height = dst_height
@@ -249,18 +288,20 @@ class ExportManager:
                 rsrp_out = rsrp_2d
                 path_loss_out = path_loss_2d
                 antenna_gain_out = antenna_gain_2d
+                los_out = los_2d  # None si no hay LOS
                 output_transform = transform
                 output_crs = source_crs
                 output_height = height
                 output_width = width
 
-            # Escribir GeoTIFF con 3 bandas
+            # Escribir GeoTIFF (3 bandas base + banda 4 LOS si disponible)
+            band_count = 4 if (has_los and los_out is not None) else 3
             with rasterio.open(
                 filename, 'w',
                 driver='GTiff',
                 height=output_height,
                 width=output_width,
-                count=3,  # 3 bandas
+                count=band_count,
                 dtype=np.float32,
                 crs=output_crs,
                 transform=output_transform
@@ -269,10 +310,14 @@ class ExportManager:
                 dst.write(path_loss_out, 2)     # Banda 2: Path Loss
                 dst.write(antenna_gain_out, 3)  # Banda 3: Antenna Gain
 
-                # Agregar descripciones de bandas
                 dst.update_tags(1, DESCRIPTION='RSRP (dBm)')
                 dst.update_tags(2, DESCRIPTION='Path Loss (dB)')
                 dst.update_tags(3, DESCRIPTION='Antenna Gain (dBi)')
+
+                if has_los and los_out is not None:
+                    dst.write(los_out, 4)       # Banda 4: LOS
+                    dst.update_tags(4, DESCRIPTION='LOS Map (1=LOS, 0=Shadow)')
+
                 dst.update_tags(export_crs=output_crs, source_crs=source_crs)
 
             self.logger.info(f"GeoTIFF multibanda exportado: {filename}")
@@ -309,7 +354,7 @@ class ExportManager:
             east = bounds[1][1]
             west = bounds[0][1]
 
-            # Obtener imagen heatmap
+            # Obtener imagen heatmap RSRP
             image_url = coverage.get('image_url', '')
             icon_href = image_url
 
@@ -326,6 +371,40 @@ class ExportManager:
                     img_file.write(image_bytes)
 
                 icon_href = image_filename
+
+            # LOS overlay (opcional, retrocompatible)
+            los_icon_href = None
+            los_url = coverage.get('los_image_url', '')
+            if los_url and los_url.startswith('data:image') and ';base64,' in los_url:
+                los_b64 = los_url.split(';base64,', 1)[1]
+                los_bytes = base64.b64decode(los_b64)
+                kml_path = Path(filename)
+                los_filename = f"{kml_path.stem}_los_overlay.png"
+                los_path = kml_path.with_name(los_filename)
+                with open(los_path, 'wb') as img_file:
+                    img_file.write(los_bytes)
+                los_icon_href = los_filename
+
+            # Bloque LOS GroundOverlay (solo si hay datos LOS)
+            los_overlay_block = ''
+            if los_icon_href:
+                los_overlay_block = f'''
+    <GroundOverlay>
+      <name>LOS Map</name>
+      <description>Line of Sight (green=LOS, orange=shadow)</description>
+      <Icon>
+                <href>{los_icon_href}</href>
+        <viewBoundScale>0.75</viewBoundScale>
+      </Icon>
+      <LatLonBox>
+        <north>{north}</north>
+        <south>{south}</south>
+        <east>{east}</east>
+        <west>{west}</west>
+        <rotation>0</rotation>
+      </LatLonBox>
+      <transparency>0.7</transparency>
+    </GroundOverlay>'''
 
             # Crear KML
             kml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -350,7 +429,7 @@ class ExportManager:
       </LatLonBox>
       <transparency>0.7</transparency>
     </GroundOverlay>
-
+    {los_overlay_block}
     <Placemark>
       <name>Coverage Center</name>
       <Point>

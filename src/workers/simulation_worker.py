@@ -7,6 +7,7 @@ from models.antenna import Antenna
 from core.models.traditional.free_space import FreeSpacePathLossModel
 from core.terrain_loader import TerrainLoader
 from utils.heatmap_generator import HeatmapGenerator
+from utils.los_calculator import LOSCalculator
 
 class SimulationWorker(QObject):
     """Worker que ejecuta simulaciones en thread separado"""
@@ -135,6 +136,9 @@ class SimulationWorker(QObject):
             if frequency_override_mhz and frequency_override_mhz > 0:
                 base_model_params['frequency_override_mhz'] = frequency_override_mhz
 
+            # Instanciar calculador LOS (reutilizado por todas las antenas, hereda xp del motor)
+            los_calc = LOSCalculator(compute_engine=self.calculator.engine)
+
             # Calcular para cada antena
             for i, antenna in enumerate(self.antennas):
                 if self.should_stop:
@@ -210,6 +214,16 @@ class SimulationWorker(QObject):
                 render_time = time.perf_counter() - render_start  # NUEVA: Timing render
                 antenna_render_times[antenna.id] = round(render_time, 3)
 
+                # Mapa LOS para esta antena
+                tx_terrain_elev = model_params.get('tx_elevation', 0.0)
+                los_map = los_calc.compute_los_map(
+                    antenna.latitude, antenna.longitude,
+                    antenna.height_agl, tx_terrain_elev,
+                    grid_lats, grid_lons,
+                    self.terrain_loader
+                )
+                los_image_url = los_calc.generate_los_image(los_map)
+
                 # Construir estructura de coverage compatible con versión anterior
                 coverage = {
                     'lats': grid_lats,
@@ -230,7 +244,9 @@ class SimulationWorker(QObject):
                     'bounds': [
                         [grid_lats.min(), grid_lons.min()],
                         [grid_lats.max(), grid_lons.max()]
-                    ]
+                    ],
+                    'los_map': los_map,
+                    'los_image_url': los_image_url,
                 }
 
                 results['individual'][antenna.id] = coverage
@@ -318,6 +334,17 @@ class SimulationWorker(QObject):
                         expanded_indices,
                         axis=0
                     )[0]
+
+                    # LOS agregado: pixel visible si al menos 1 antena lo ve
+                    los_maps = [
+                        results['individual'][aid]['los_map']
+                        for aid in antenna_ids
+                        if results['individual'][aid].get('los_map') is not None
+                    ]
+                    if los_maps:
+                        agg_los_map = np.max(np.stack(los_maps, axis=0), axis=0)
+                        results['aggregated']['los_map'] = agg_los_map
+                        results['aggregated']['los_image_url'] = los_calc.generate_los_image(agg_los_map)
 
                 self.logger.info("Aggregated coverage generated successfully")
             else:

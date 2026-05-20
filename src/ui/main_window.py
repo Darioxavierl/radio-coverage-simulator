@@ -722,15 +722,19 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.status_label.setText("Simulación completada")
 
-        # PHASE 7: Mostrar heatmap AGREGADO por defecto (en lugar de individual superpuesto)
+        # Registrar capas individuales (ocultas en mapa, disponibles en panel de capas)
+        for antenna_id, coverage in results['individual'].items():
+            self.map_widget.show_coverage(antenna_id, coverage, visible_rsrp=False)
+
+        # Mostrar capa agregada visible por defecto
         if 'aggregated' in results:
             self.logger.info("Displaying aggregated heatmap")
-            self.map_widget.show_coverage('aggregated_coverage', results['aggregated'])
+            self.map_widget.show_coverage('aggregated_coverage', results['aggregated'], visible_rsrp=True)
         else:
-            # Fallback: si no hay agregada (debería siempre existir), mostrar individual
-            self.logger.warning("Aggregated coverage not found, displaying individual coverages")
-            for antenna_id, coverage in results['individual'].items():
-                self.map_widget.show_coverage(antenna_id, coverage)
+            # Fallback: si no hay agregada, mostrar la primera individual visible
+            self.logger.warning("Aggregated coverage not found, showing first individual")
+            first_id = next(iter(results['individual']))
+            self.map_widget.show_coverage(first_id, results['individual'][first_id], visible_rsrp=True)
 
         self._cleanup_simulation_thread()
 

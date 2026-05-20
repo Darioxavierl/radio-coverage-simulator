@@ -136,9 +136,12 @@ class CoverageCalculator:
         # Algunos modelos retornan dict, otros ndarray directamente
         path_loss = result['path_loss'] if isinstance(result, dict) else result
 
-        # Aplicar patrón de antena
+        # Aplicar patrón de antena 3D (horizontal + vertical, 3GPP TR 38.901 §7.3.2)
         antenna_gain = self._apply_antenna_pattern(
-            antenna, grid_lats, grid_lons
+            antenna, grid_lats, grid_lons,
+            distances=distances,
+            terrain_heights=terrain_heights,
+            tx_elevation=tx_elevation
         )
 
         # RSRP = Tx Power + Antenna Gain - Path Loss
@@ -240,29 +243,76 @@ class CoverageCalculator:
         
         return R * c
     
-    def _apply_antenna_pattern(self, antenna: Antenna, grid_lats, grid_lons):
-        """Aplica patrón de radiación de la antena"""
-        # Calcular ángulos azimuth desde la antena a cada punto
+    def _apply_antenna_pattern(self, antenna: Antenna, grid_lats, grid_lons,
+                               distances=None, terrain_heights=None, tx_elevation=0.0):
+        """Aplica patrón de radiación 3D de la antena (horizontal + vertical).
+
+        Implementa la aproximación gaussiana de 3GPP TR 38.901 §7.3.2, válida
+        para todos los modelos de propagación (no exclusiva de 5G).
+
+        Formula horizontal:
+            A_H(φ) = -min[ 12·(φ / φ_3dB)², 30 dB ]
+        Formula vertical (sólo cuando se pasan distances y terrain_heights):
+            A_V(θ) = -min[ 12·((θ - θ_tilt) / θ_3dB)², 30 dB ]
+        Patron total:
+            G(φ,θ) = G_max - min[ -(A_H + A_V), 30 dB ]
+
+        Args:
+            antenna: Objeto Antenna con los parámetros RF.
+            grid_lats: Array 2D con latitudes del grid.
+            grid_lons: Array 2D con longitudes del grid.
+            distances: Array 2D con distancias horizontales TX→RX en metros (Haversine).
+                       Necesario para calcular el patrón vertical.
+            terrain_heights: Array 2D con elevaciones del terreno en cada punto del grid (m MSL).
+                             Necesario para calcular el ángulo de elevación al receptor.
+            tx_elevation: Elevación del terreno en la posición de la antena (m MSL).
+                          Se suma a height_agl para obtener la altura absoluta del TX.
+        """
+        # --- Patrón horizontal ---
         azimuth_to_points = self._calculate_azimuths(
             antenna.latitude, antenna.longitude,
             grid_lats, grid_lons
         )
-        
-        # Diferencia angular respecto al azimuth de la antena
+
         angle_diff = self.xp.abs(azimuth_to_points - antenna.azimuth)
         angle_diff = self.xp.minimum(angle_diff, 360 - angle_diff)
-        
-        # Aplicar atenuación según beamwidth
+
         if antenna.antenna_type.value == "omnidirectional":
-            horizontal_gain = self.xp.zeros_like(angle_diff)
-        else:
-            # Aproximación gaussiana del patrón
-            horizontal_gain = -self.xp.minimum(
-                12 * (angle_diff / (antenna.horizontal_beamwidth/2))**2,
-                30  # Atenuación máxima 30 dB
+            # Sin variación azimutal ni vertical; ganancia isotrópica en todas las direcciones
+            return antenna.gain_dbi + self.xp.zeros_like(angle_diff)
+
+        # Atenuación horizontal — denominador = beamwidth completo (3GPP TR 38.901 §7.3.2)
+        h_atten = -self.xp.minimum(
+            12 * (angle_diff / antenna.horizontal_beamwidth) ** 2,
+            30.0
+        )
+
+        # --- Patrón vertical (sólo con información de distancia/terreno) ---
+        if distances is not None and terrain_heights is not None:
+            h_tx_abs = float(tx_elevation) + antenna.height_agl
+            delta_h = h_tx_abs - terrain_heights  # positivo cuando TX está por encima del RX
+
+            # Ángulo de elevación TX→RX: positivo cuando RX está por debajo del TX
+            elevation_angle = self.xp.degrees(
+                self.xp.arctan2(delta_h, self.xp.maximum(distances, 1.0))
             )
-        
-        return antenna.gain_dbi + horizontal_gain
+
+            # Tilt efectivo total (positivo = apuntando hacia abajo)
+            effective_tilt = antenna.mechanical_tilt + antenna.electrical_tilt
+            theta_diff = elevation_angle - effective_tilt
+
+            v_atten = -self.xp.minimum(
+                12 * (theta_diff / antenna.vertical_beamwidth) ** 2,
+                30.0
+            )
+
+            # Patrón total 3D — cap conjunto a 30 dB (3GPP TR 38.901 §7.3.2)
+            combined = -self.xp.minimum(-(h_atten + v_atten), 30.0)
+        else:
+            # Sin datos de terreno/distancia → sólo patrón horizontal (retrocompatible)
+            combined = h_atten
+
+        return antenna.gain_dbi + combined
     
     def _calculate_azimuths(self, ant_lat, ant_lon, grid_lats, grid_lons):
         """Calcula azimuth desde antena a cada punto"""
@@ -388,9 +438,18 @@ class CoverageCalculator:
         # Algunos modelos retornan dict, otros ndarray directamente
         path_loss = result['path_loss'] if isinstance(result, dict) else result
 
-        # Aplicar patrón de antena
+        # Obtener elevación TX para patrón vertical
+        if terrain_loader is not None and terrain_loader.is_loaded():
+            tx_elevation_quick = terrain_loader.get_elevation(antenna.latitude, antenna.longitude)
+        else:
+            tx_elevation_quick = 0.0
+
+        # Aplicar patrón de antena 3D (horizontal + vertical, 3GPP TR 38.901 §7.3.2)
         antenna_gain = self._apply_antenna_pattern(
-            antenna, grid_lats_gpu, grid_lons_gpu
+            antenna, grid_lats_gpu, grid_lons_gpu,
+            distances=distances,
+            terrain_heights=terrain_heights_gpu,
+            tx_elevation=tx_elevation_quick
         )
 
         # RSRP = Tx Power + Antenna Gain - Path Loss

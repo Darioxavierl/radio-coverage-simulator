@@ -90,7 +90,125 @@ class TestCoverageCalculator(unittest.TestCase):
         # Para omnidireccional, todos los puntos deben tener ganancia similar (± tolerancia)
         # Ganancia = gain_dbi + horizontal_gain (que es 0 para omni)
         np.testing.assert_array_almost_equal(gain, omni_antenna.gain_dbi, decimal=1)
-    
+
+    def test_antenna_pattern_horizontal_sectorial(self):
+        """Fórmula horizontal 3GPP TR 38.901: -3 dB exacto en el borde del beamwidth."""
+        import math
+        antenna = self.test_antenna
+        antenna.antenna_type = AntennaType.DIRECTIONAL
+        antenna.azimuth = 0.0          # boresight al Norte
+        antenna.horizontal_beamwidth = 60.0
+        antenna.gain_dbi = 18.0
+
+        d_deg = 0.1  # desplazamiento pequeño en grados
+
+        # Receptor exactamente en boresight (0° de desvío) → sin atenuación
+        lats_bore = np.array([[antenna.latitude + d_deg]])
+        lons_bore = np.array([[antenna.longitude]])
+        gain_bore = self.calculator._apply_antenna_pattern(antenna, lats_bore, lons_bore)
+        self.assertAlmostEqual(float(gain_bore[0, 0]), 18.0, delta=0.1)
+
+        # Receptor a 30° del boresight (= bw/2) → -3 dB según 3GPP §7.3.2
+        lats_30 = np.array([[antenna.latitude + d_deg * math.cos(math.radians(30))]])
+        lons_30 = np.array([[antenna.longitude + d_deg * math.sin(math.radians(30))]])
+        gain_30 = self.calculator._apply_antenna_pattern(antenna, lats_30, lons_30)
+        self.assertAlmostEqual(float(gain_30[0, 0]), 15.0, delta=0.3)  # 18 - 3 = 15 dBi
+
+    def test_antenna_pattern_vertical_downtilt(self):
+        """Patrón vertical: máxima ganancia cuando el receptor está en la dirección del tilt."""
+        import math
+        antenna = self.test_antenna
+        antenna.antenna_type = AntennaType.DIRECTIONAL
+        antenna.azimuth = 0.0
+        antenna.horizontal_beamwidth = 360.0  # desactivar variación horizontal
+        antenna.vertical_beamwidth = 10.0
+        antenna.mechanical_tilt = 6.0
+        antenna.electrical_tilt = 0.0
+        antenna.gain_dbi = 18.0
+        antenna.height_agl = 100.0
+
+        tx_elevation = 0.0
+        # Geometría: TX a 100m, receptor a terrain_height=0
+        # Para elevation_angle = 6° → d = 100/tan(6°) ≈ 951.4 m
+        d_m = 100.0 / math.tan(math.radians(6.0))
+        d_deg = d_m / 111000.0
+        lats = np.array([[antenna.latitude + d_deg]])
+        lons = np.array([[antenna.longitude]])
+        distances = np.array([[d_m]])
+        terrain_heights = np.array([[0.0]])
+
+        gain = self.calculator._apply_antenna_pattern(
+            antenna, lats, lons,
+            distances=distances,
+            terrain_heights=terrain_heights,
+            tx_elevation=tx_elevation
+        )
+        # elevation_angle ≈ 6° = effective_tilt → v_atten = 0, h_atten = 0 → gain = 18
+        self.assertAlmostEqual(float(gain[0, 0]), 18.0, delta=0.3)
+
+        # Receptor al mismo nivel que TX (elevation_angle = 0°) → theta_diff = -6°
+        terrain_heights_high = np.array([[100.0]])  # misma altura que TX
+        distances_far = np.array([[10000.0]])
+        lats_far = np.array([[antenna.latitude + 10000.0 / 111000.0]])
+        gain_flat = self.calculator._apply_antenna_pattern(
+            antenna, lats_far, lons,
+            distances=distances_far,
+            terrain_heights=terrain_heights_high,
+            tx_elevation=tx_elevation
+        )
+        # elevation_angle ≈ 0°, theta_diff = -6°, v_atten = -12*(6/10)² = -4.32 dB
+        expected_v_atten = -12 * (6.0 / 10.0) ** 2
+        self.assertAlmostEqual(float(gain_flat[0, 0]), 18.0 + expected_v_atten, delta=0.3)
+
+    def test_antenna_pattern_3d_combined(self):
+        """Patrón 3D combinado: H+V ambos en máximo → resultado capeado a -30 dB."""
+        antenna = self.test_antenna
+        antenna.antenna_type = AntennaType.DIRECTIONAL
+        antenna.azimuth = 0.0             # boresight al Norte
+        antenna.horizontal_beamwidth = 60.0
+        antenna.vertical_beamwidth = 10.0
+        antenna.mechanical_tilt = 0.0
+        antenna.electrical_tilt = 0.0
+        antenna.gain_dbi = 18.0
+        antenna.height_agl = 0.0
+
+        # Receptor al Sur → 180° off boresight → h_atten = -30 dB (capeado)
+        # Receptor 500m por debajo del TX → elevation_angle ≈ 26.6° → v_atten = -30 dB (capeado)
+        d_m = 1000.0
+        d_deg = d_m / 111000.0
+        lats = np.array([[antenna.latitude - d_deg]])   # Sur = 180° off boresight
+        lons = np.array([[antenna.longitude]])
+        distances = np.array([[d_m]])
+        terrain_heights = np.array([[-500.0]])  # 500m por debajo del TX
+
+        gain = self.calculator._apply_antenna_pattern(
+            antenna, lats, lons,
+            distances=distances,
+            terrain_heights=terrain_heights,
+            tx_elevation=0.0
+        )
+        # combined = -min(-(-30 + -30), 30) = -30 dB → gain = 18 - 30 = -12 dBi
+        self.assertAlmostEqual(float(gain[0, 0]), -12.0, delta=0.1)
+
+    def test_antenna_pattern_no_terrain(self):
+        """Sin datos de terreno → sólo patrón horizontal (retrocompatibilidad)."""
+        import math
+        antenna = self.test_antenna
+        antenna.antenna_type = AntennaType.DIRECTIONAL
+        antenna.azimuth = 0.0
+        antenna.horizontal_beamwidth = 60.0
+        antenna.gain_dbi = 18.0
+
+        # Receptor a 30° del boresight = borde del haz → -3 dB
+        d_deg = 0.1
+        lats = np.array([[antenna.latitude + d_deg * math.cos(math.radians(30))]])
+        lons = np.array([[antenna.longitude + d_deg * math.sin(math.radians(30))]])
+
+        # Llamada sin distances/terrain_heights → retrocompatible
+        gain = self.calculator._apply_antenna_pattern(antenna, lats, lons)
+        self.assertTrue(np.isfinite(float(gain[0, 0])))
+        self.assertAlmostEqual(float(gain[0, 0]), 15.0, delta=0.3)  # 18 - 3 = 15 dBi
+
     def test_quick_coverage_calculation(self):
         """Verifica cálculo rápido de cobertura"""
         model = FreeSpacePathLossModel(compute_module=self.calculator.xp)

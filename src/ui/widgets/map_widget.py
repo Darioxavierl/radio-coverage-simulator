@@ -23,9 +23,13 @@ class MapBridge(QObject):
     remove_antenna_marker = pyqtSignal(str)
     update_antenna_marker = pyqtSignal(str, float, float, float, str)  # id, lat, lon, azimuth, color
     #add_coverage_layer = pyqtSignal(str, str)  # antenna_id, geotiff_data_url
-    add_coverage_layer = pyqtSignal(str, str, float, float, float, float) 
+    add_coverage_layer = pyqtSignal(str, str, float, float, float, float)
     remove_coverage_layer = pyqtSignal(str)
     update_coverage_legend = pyqtSignal(float, float)  # vmin_dBm, vmax_dBm
+    add_los_layer = pyqtSignal(str, str, float, float, float, float)  # id, imageUrl, latMin, lonMin, latMax, lonMax
+    register_layer_name = pyqtSignal(str, str)  # antenna_id, display_name
+    add_hidden_coverage_layer = pyqtSignal(str, str, float, float, float, float)  # id, imageUrl, latMin, lonMin, latMax, lonMax
+    store_rsrp_range = pyqtSignal(str, float, float)  # antenna_id, vmin, vmax
     set_map_mode = pyqtSignal(str)
     center_map = pyqtSignal(float, float, int)
     clear_all_markers = pyqtSignal()
@@ -186,8 +190,13 @@ class MapWidget(QWidget):
         let currentMode = 'pan';
         let antennaMarkers = {};
         let coverageLayers = {};
+        let losLayers = {};
+        let overlayNames = {};
         let selectedMarker = null;
         let legendControl = null;
+        let baseLayers = null;
+        let overlayControl = null;
+        let rsrpRanges = {};
         
         // Inicializar mapa
         function initMap() {
@@ -206,18 +215,63 @@ class MapWidget(QWidget):
             
             osmLayer.addTo(map);
             
-            // Control de capas
-            L.control.layers({
+            // Control de capas base
+            baseLayers = {
                 'OpenStreetMap': osmLayer,
                 'Satellite': satelliteLayer
-            }).addTo(map);
+            };
+            L.control.layers(baseLayers).addTo(map);
             
             // Escala
             L.control.scale({imperial: false}).addTo(map);
             
             // Eventos del mapa
             map.on('click', handleMapClick);
-            
+
+            // Leyenda dinámica: actualiza según qué capa activa el usuario en el panel
+            map.on('overlayadd', function(e) {
+                for (var rsrpId in coverageLayers) {
+                    if (coverageLayers[rsrpId] === e.layer) {
+                        if (rsrpRanges[rsrpId]) {
+                            updateCoverageLegend(rsrpRanges[rsrpId].vmin, rsrpRanges[rsrpId].vmax);
+                        }
+                        return;
+                    }
+                }
+                for (var losId in losLayers) {
+                    if (losLayers[losId] === e.layer) {
+                        showLOSLegend();
+                        return;
+                    }
+                }
+            });
+
+            map.on('overlayremove', function() {
+                var visibleRsrpId = null;
+                var hasVisibleLOS = false;
+                for (var rsrpId in coverageLayers) {
+                    if (map.hasLayer(coverageLayers[rsrpId])) {
+                        visibleRsrpId = rsrpId;
+                        break;
+                    }
+                }
+                if (!visibleRsrpId) {
+                    for (var losId in losLayers) {
+                        if (map.hasLayer(losLayers[losId])) {
+                            hasVisibleLOS = true;
+                            break;
+                        }
+                    }
+                }
+                if (visibleRsrpId && rsrpRanges[visibleRsrpId]) {
+                    updateCoverageLegend(rsrpRanges[visibleRsrpId].vmin, rsrpRanges[visibleRsrpId].vmax);
+                } else if (hasVisibleLOS) {
+                    showLOSLegend();
+                } else {
+                    hideLegend();
+                }
+            });
+
             // Actualizar centro cuando el mapa se mueve
             map.on('moveend', function() {
                 const center = map.getCenter();
@@ -324,7 +378,7 @@ class MapWidget(QWidget):
             }
         }
         
-        // Agregar capa de cobertura
+        // Agregar capa de cobertura RSRP
         function addCoverageLayer(antennaId, imageUrl, latMin, lonMin, latMax, lonMax) {
             console.log('Adding coverage layer for:', antennaId);
 
@@ -333,25 +387,91 @@ class MapWidget(QWidget):
                 map.removeLayer(coverageLayers[antennaId]);
                 delete coverageLayers[antennaId];
             }
-            
-            // Bounds del overlay
+
             var bounds = [[latMin, lonMin], [latMax, lonMax]];
-            
-            // Crear overlay de imagen
             var imageOverlay = L.imageOverlay(imageUrl, bounds, {
                 opacity: 0.6,
                 interactive: false
             });
-            
+
             imageOverlay.addTo(map);
             coverageLayers[antennaId] = imageOverlay;
+            rebuildLayerControl();
         }
-        
+
+        // Agregar capa RSRP oculta (disponible en el panel, no visible en el mapa)
+        function addHiddenCoverageLayer(antennaId, imageUrl, latMin, lonMin, latMax, lonMax) {
+            console.log('Adding hidden coverage layer for:', antennaId);
+            if (coverageLayers[antennaId]) {
+                map.removeLayer(coverageLayers[antennaId]);
+                delete coverageLayers[antennaId];
+            }
+            var bounds = [[latMin, lonMin], [latMax, lonMax]];
+            var imageOverlay = L.imageOverlay(imageUrl, bounds, {
+                opacity: 0.6,
+                interactive: false
+            });
+            // No se añade al mapa — checkbox desmarcado en el panel
+            coverageLayers[antennaId] = imageOverlay;
+            rebuildLayerControl();
+        }
+
+        // Guardar rango RSRP por antena para la leyenda dinámica
+        function storeRsrpRange(antennaId, vmin, vmax) {
+            rsrpRanges[antennaId] = { vmin: vmin, vmax: vmax };
+        }
+
         // Remover capa de cobertura
         function removeCoverageLayer(antennaId) {
             if (coverageLayers[antennaId]) {
                 map.removeLayer(coverageLayers[antennaId]);
                 delete coverageLayers[antennaId];
+            }
+        }
+
+        // Agregar capa LOS (inicia oculta; usuario la activa desde el panel)
+        function addLOSLayer(antennaId, imageUrl, latMin, lonMin, latMax, lonMax) {
+            console.log('Adding LOS layer for:', antennaId);
+
+            if (losLayers[antennaId]) {
+                if (map.hasLayer(losLayers[antennaId])) {
+                    map.removeLayer(losLayers[antennaId]);
+                }
+                delete losLayers[antennaId];
+            }
+
+            var bounds = [[latMin, lonMin], [latMax, lonMax]];
+            var imageOverlay = L.imageOverlay(imageUrl, bounds, {
+                opacity: 0.6,
+                interactive: false
+            });
+            // No se añade al mapa aquí — queda disponible en el control de capas
+            losLayers[antennaId] = imageOverlay;
+            rebuildLayerControl();
+        }
+
+        // Registrar nombre de display para el control de capas
+        function setLayerName(antennaId, name) {
+            overlayNames[antennaId] = name;
+        }
+
+        // Reconstruir el panel de control de overlays (RSRP + LOS)
+        function rebuildLayerControl() {
+            if (overlayControl) {
+                overlayControl.remove();
+                overlayControl = null;
+            }
+            const overlays = {};
+            Object.entries(coverageLayers).forEach(([id, layer]) => {
+                const label = 'RSRP: ' + (overlayNames[id] || id);
+                overlays[label] = layer;
+            });
+            Object.entries(losLayers).forEach(([id, layer]) => {
+                const label = 'LOS: ' + (overlayNames[id] || id);
+                overlays[label] = layer;
+            });
+            if (Object.keys(overlays).length > 0 && baseLayers) {
+                overlayControl = L.control.layers(baseLayers, overlays, {collapsed: false}).addTo(map);
             }
         }
         
@@ -398,6 +518,18 @@ class MapWidget(QWidget):
                 map.removeLayer(coverageLayers[id]);
             });
             coverageLayers = {};
+            Object.keys(losLayers).forEach(id => {
+                if (map.hasLayer(losLayers[id])) {
+                    map.removeLayer(losLayers[id]);
+                }
+            });
+            losLayers = {};
+            overlayNames = {};
+            if (overlayControl) {
+                overlayControl.remove();
+                overlayControl = null;
+            }
+            hideLegend();
         }
         
         // ===== Leyenda de cobertura (RSRP) =====
@@ -435,6 +567,36 @@ class MapWidget(QWidget):
             }
         }
         
+        function showLOSLegend() {
+            if (!legendControl) {
+                legendControl = L.control({ position: 'bottomright' });
+                legendControl.onAdd = function() {
+                    const div = L.DomUtil.create('div', '');
+                    div.id = 'coverage-legend';
+                    return div;
+                };
+                legendControl.addTo(map);
+            }
+            const el = document.getElementById('coverage-legend');
+            if (el) {
+                el.innerHTML = '<div class="leg-title">Visibilidad</div>'
+                             + '<div style="margin-top:6px;font-size:11px;">'
+                             + '<span style="display:inline-block;width:14px;height:14px;'
+                             + 'background:#00aa44;border-radius:2px;margin-right:5px;'
+                             + 'vertical-align:middle;"></span>LOS<br/>'
+                             + '<span style="display:inline-block;width:14px;height:14px;'
+                             + 'background:#ff6600;border-radius:2px;margin-right:5px;'
+                             + 'vertical-align:middle;"></span>Sombra'
+                             + '</div>';
+                el.style.display = 'block';
+            }
+        }
+
+        function hideLegend() {
+            const el = document.getElementById('coverage-legend');
+            if (el) { el.style.display = 'none'; }
+        }
+
         // Obtener centro del mapa
         function getMapCenter() {
             const center = map.getCenter();
@@ -453,6 +615,10 @@ class MapWidget(QWidget):
             bridge.add_coverage_layer.connect(addCoverageLayer);
             bridge.remove_coverage_layer.connect(removeCoverageLayer);
             bridge.update_coverage_legend.connect(updateCoverageLegend);
+            bridge.add_los_layer.connect(addLOSLayer);
+            bridge.register_layer_name.connect(setLayerName);
+            bridge.add_hidden_coverage_layer.connect(addHiddenCoverageLayer);
+            bridge.store_rsrp_range.connect(storeRsrpRange);
             bridge.set_map_mode.connect(setMapMode);
             bridge.center_map.connect(centerMap);
             bridge.clear_all_markers.connect(clearAllMarkers);
@@ -488,31 +654,67 @@ class MapWidget(QWidget):
                       azimuth: float = 0.0, color: str = "#FF0000"):
         """Actualiza marcador de antena"""
         self.bridge.update_antenna_marker.emit(antenna_id, lat, lon, azimuth, color)
-    def show_coverage(self, antenna_id: str, coverage_data: dict):
+    def show_coverage(self, antenna_id: str, coverage_data: dict, visible_rsrp: bool = True):
         """
-        Muestra capa de cobertura como overlay
-        
+        Muestra capa de cobertura RSRP y LOS como overlays en el mapa.
+
         Args:
-            coverage_data: dict con 'lats', 'lons', 'rsrp', 'image_url'
+            antenna_id:    Identificador único de la antena
+            coverage_data: dict con 'image_url', 'bounds', 'rsrp_vmin/vmax',
+                           y opcionalmente 'los_image_url'
+            visible_rsrp:  True → capa RSRP visible en el mapa al inicio;
+                           False → disponible en el panel (checkbox desmarcado)
         """
         if not self.bridge:
             return
-        
-        # Si viene con image_url (data URL de la imagen), usarlo
+
         if 'image_url' in coverage_data:
             bounds = coverage_data['bounds']  # [[lat_min, lon_min], [lat_max, lon_max]]
-            self.bridge.add_coverage_layer.emit(
-                antenna_id, 
-                coverage_data['image_url'],
-                bounds[0][0], bounds[0][1],  # lat_min, lon_min
-                bounds[1][0], bounds[1][1]   # lat_max, lon_max
-            )
-            # Actualizar leyenda con el rango real de esta simulación
+
+            # Registrar nombre de display para el control de capas
+            antenna_name = coverage_data.get('antenna', {}).get('name', antenna_id)
+            self.bridge.register_layer_name.emit(antenna_id, antenna_name)
+
+            # Almacenar rango RSRP para la leyenda dinámica (siempre, aunque la capa esté oculta)
             if 'rsrp_vmin' in coverage_data and 'rsrp_vmax' in coverage_data:
-                self.bridge.update_coverage_legend.emit(
+                self.bridge.store_rsrp_range.emit(
+                    antenna_id,
                     float(coverage_data['rsrp_vmin']),
                     float(coverage_data['rsrp_vmax'])
                 )
+
+            if visible_rsrp:
+                # Capa RSRP visible en el mapa desde el inicio
+                self.bridge.add_coverage_layer.emit(
+                    antenna_id,
+                    coverage_data['image_url'],
+                    bounds[0][0], bounds[0][1],  # lat_min, lon_min
+                    bounds[1][0], bounds[1][1]   # lat_max, lon_max
+                )
+                # Mostrar leyenda inicial con el rango de esta capa
+                if 'rsrp_vmin' in coverage_data and 'rsrp_vmax' in coverage_data:
+                    self.bridge.update_coverage_legend.emit(
+                        float(coverage_data['rsrp_vmin']),
+                        float(coverage_data['rsrp_vmax'])
+                    )
+            else:
+                # Capa RSRP disponible en el panel pero oculta en el mapa
+                self.bridge.add_hidden_coverage_layer.emit(
+                    antenna_id,
+                    coverage_data['image_url'],
+                    bounds[0][0], bounds[0][1],  # lat_min, lon_min
+                    bounds[1][0], bounds[1][1]   # lat_max, lon_max
+                )
+
+        # Capa LOS (siempre oculta al inicio — el usuario la activa desde el panel)
+        if coverage_data.get('los_image_url'):
+            bounds = coverage_data['bounds']
+            self.bridge.add_los_layer.emit(
+                antenna_id,
+                coverage_data['los_image_url'],
+                bounds[0][0], bounds[0][1],
+                bounds[1][0], bounds[1][1]
+            )
 
     def show_coverage1(self, antenna_id: str, coverage_data: np.ndarray):
         """Muestra capa de cobertura para una antena"""
