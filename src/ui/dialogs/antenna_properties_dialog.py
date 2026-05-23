@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox,
-                             QPushButton, QGroupBox, QLabel, QTabWidget, QWidget)
+                             QPushButton, QGroupBox, QLabel, QTabWidget, QWidget,
+                             QCheckBox)
 from PyQt6.QtCore import Qt
 from src.models.antenna import Antenna, Technology, AntennaType
 import logging
@@ -96,6 +97,11 @@ class AntennaPropertiesDialog(QDialog):
         location_group.setLayout(loc_layout)
         layout.addRow(location_group)
         
+        # Habilitada para simulación
+        self.enabled_check = QCheckBox()
+        self.enabled_check.setToolTip("Si está desmarcada, esta antena será ignorada al ejecutar la simulación")
+        layout.addRow("Habilitada para simulación:", self.enabled_check)
+
         # Notas
         self.notes_edit = QLineEdit()
         layout.addRow("Notas:", self.notes_edit)
@@ -221,6 +227,7 @@ class AntennaPropertiesDialog(QDialog):
         self.lat_spin.setValue(self.antenna.latitude)
         self.lon_spin.setValue(self.antenna.longitude)
         self.height_spin.setValue(self.antenna.height_agl)
+        self.enabled_check.setChecked(self.antenna.enabled)
         self.notes_edit.setText(self.antenna.notes)
         
         # RF
@@ -257,6 +264,7 @@ class AntennaPropertiesDialog(QDialog):
             'latitude': self.lat_spin.value(),
             'longitude': self.lon_spin.value(),
             'height_agl': self.height_spin.value(),
+            'enabled': self.enabled_check.isChecked(),
             'notes': self.notes_edit.text(),
             'technology': selected_technology,
             'frequency_mhz': self.frequency_spin.value(),
