@@ -20,7 +20,7 @@
 | NumPy | Vectorización de todos los cálculos (sin bucles Python) |
 | matplotlib Agg | Renderizado de la imagen PNG resultado |
 
-`LOSCalculator` **no** accede directamente al raster DEM; delega la lectura de elevaciones a `TerrainLoader`, que ya gestiona la interpolación bilineal y el caché.
+`LOSCalculator` **no** accede directamente al raster DEM; delega la lectura de elevaciones a `TerrainLoader`, que gestiona la transformación de coordenadas, el muestreo raster vectorizado y la extracción de perfiles radiales.
 
 ---
 
@@ -58,7 +58,7 @@ Un punto receptor está en **sombra (NLOS)** si existe al menos un punto interme
 
 $$\text{NLOS} \iff \exists\, j \in \{1, \ldots, n_{samples}-2\} \text{ tal que } \text{profile}_j > z_{los}(t_j)$$
 
-Los extremos $j = 0$ (TX) y $j = n_{samples}-1$ (RX) se excluyen deliberadamente para evitar falsos positivos causados por imprecisiones numéricas en la interpolación del DEM en los bordes del perfil.
+Los extremos $j = 0$ (TX) y $j = n_{samples}-1$ (RX) se excluyen deliberadamente para evitar falsos positivos causados por discretización espacial del DEM y por el muestreo del perfil en sus extremos.
 
 El punto receptor es **LOS** si y solo si:
 

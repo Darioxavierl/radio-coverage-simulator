@@ -1,10 +1,10 @@
-# Terreno y Cartografía: Carga de DEM, Transformaciones de Coordenadas e Interpolación
+# Terreno y Cartografía: Carga de DEM, Transformaciones de Coordenadas y Muestreo Raster
 
 **Versión:** 2026-05-08
 
 ## 1. Propósito
 
-El subsistema de terreno proporciona la base cartográfica (Modelo Digital de Elevación, DEM) sobre la cual se calcula cobertura. Transforma coordenadas WGS84 geográficas a píxeles raster, interpola alturas en grillas y valida integridad de datos.
+El subsistema de terreno proporciona la base cartográfica (Modelo Digital de Elevación, DEM) sobre la cual se calcula cobertura. Transforma coordenadas WGS84 geográficas a píxeles raster, muestrea alturas sobre grillas y perfiles, y valida integridad de datos.
 
 ## 2. Stack Tecnológico
 
@@ -12,7 +12,8 @@ El subsistema de terreno proporciona la base cartográfica (Modelo Digital de El
 |----------|---------|---------|
 | rasterio | Lectura GeoTIFF, metadata CRS | 1.3+ |
 | pyproj | Transformaciones de coordenadas | 3.4+ |
-| NumPy/CuPy | Interpolación vectorizada | 1.20+/11.0+ |
+| NumPy | Vectorización de consultas y manejo de arreglos | 1.20+ |
+| SciPy | Suavizado gaussiano de perfiles | 1.10+ |
 
 ## 3. Flujo de Carga de Terreno
 
@@ -27,7 +28,7 @@ Archivo GeoTIFF
     │
     ├─ Valida: no-data, bordes, consistencia
     │
-    └─→ TerrainLoader cacheado
+    └─→ TerrainLoader inicializado
          │
          ├─ Disponible para transformación
          │
@@ -56,8 +57,8 @@ class TerrainLoader:
     Responsabilidades:
     - Leer GeoTIFF con rasterio
     - Mantener transformación de coordenadas WGS84 ↔ CRS raster
-    - Interpolar alturas en puntos arbitrarios
-    - Caché de resultados
+    - Muestrear alturas en puntos arbitrarios tras transformar coordenadas
+    - Generar perfiles radiales, distancias de perfil y perfiles suavizados
     """
     
     def __init__(self, filepath: str):
@@ -68,9 +69,6 @@ class TerrainLoader:
         self.bounds = None
         self.transform = None
         self.transformer = None
-        
-        # Caché de alturas interpoladas
-        self._height_cache = {}
         
         # Cargar archivo
         self._load_terrain()
@@ -268,7 +266,7 @@ Altura:
 └─────────────────────────────┘
 ```
 
-## 6. Interpolación Vectorizada en Grid
+## 6. Muestreo Vectorizado sobre la Grid
 
 ### 6.1 Problema: 10,000 Puntos a la Vez
 
@@ -323,7 +321,7 @@ terrain_heights = terrain_loader.get_heights_fast(grid_lats, grid_lons)
 # terrain_heights shape: (100, 100), dtype float32
 ```
 
-### 6.2 Timing de Interpolación
+### 6.2 Timing del Muestreo Vectorizado
 
 ```
 Operación                  | Tiempo
@@ -506,38 +504,33 @@ class CoverageCalculator:
         return path_loss
 ```
 
-## 9. Caché y Performance
+## 9. Vectorización y Performance
 
 ```python
 def get_heights_fast(self, lats_2d, lons_2d) -> np.ndarray:
     """
-    Con caché: evita recalcular interpolación
-    para mismos datos
+    Implementación actual: transforma coordenadas por lotes,
+    obtiene índices raster y muestrea elevaciones por celda.
     """
+    xs, ys = self.transformer.transform(lons_2d.ravel(), lats_2d.ravel())
+    rows, cols = rowcol(self.dataset.transform, xs, ys)
     
-    # Generar clave de caché (hash de coordenadas)
-    cache_key = (
-        hash(lats_2d.tobytes()),
-        hash(lons_2d.tobytes())
-    )
-    
-    if cache_key in self._height_cache:
-        self.logger.debug("Using cached heights")
-        return self._height_cache[cache_key]
-    
-    # Calcular (si no está en caché)
-    heights = ... # (cálculo completo)
-    
-    # Guardar en caché
-    self._height_cache[cache_key] = heights.copy()
-    
-    # Limpiar caché si crece demasiado (últimas 10)
-    if len(self._height_cache) > 10:
-        oldest_key = next(iter(self._height_cache))
-        del self._height_cache[oldest_key]
-    
+    heights = np.zeros(len(rows))
+    for i, (row, col) in enumerate(zip(rows, cols)):
+        if 0 <= row < self.data.shape[0] and 0 <= col < self.data.shape[1]:
+            elev = self.data[row, col]
+            if 0 <= elev < 10000:
+                heights[i] = elev
+
+    heights = heights.reshape(lats_2d.shape)
     return heights
 ```
+
+Observaciones de la implementación real:
+
+- El `TerrainLoader` actual no implementa un caché interno de elevaciones.
+- Tampoco realiza interpolación bilineal sobre el DEM; la consulta se resuelve mediante transformación de coordenadas y lectura del valor de la celda raster correspondiente.
+- Cuando el pipeline principal está operando con CuPy, las coordenadas se convierten primero a NumPy antes de consultar al `TerrainLoader`.
 
 ## 10. Integración Específica con 3GPP TR 38.901 (Modo 2)
 
@@ -568,7 +561,7 @@ $$L_d(v) =
 $$\Delta PL_{terrain} = L_d \cdot (1 - P_{LOS})$$
 
 Notas de implementación:
-- El perfil es efectivo/vectorizado (no ray-tracing completo), para mantener rendimiento en CPU/GPU.
+- El perfil es efectivo/vectorizado (no ray-tracing completo), para mantener rendimiento en CPU; si el pipeline opera con GPU, las consultas al terreno se realizan previamente sobre arreglos NumPy.
 - `dem_profile_samples` controla precisión vs costo computacional.
 - `max_terrain_correction_db` limita valores extremos numéricos.
 
