@@ -11,6 +11,7 @@ class ProjectPanel(QWidget):
     antenna_selected = pyqtSignal(str)
     antenna_delete_requested = pyqtSignal(str)
     site_selected = pyqtSignal(str)
+    site_delete_requested = pyqtSignal(str)
     
     def __init__(self, antenna_manager, site_manager, parent=None):
         super().__init__(parent)
@@ -98,8 +99,7 @@ class ProjectPanel(QWidget):
             if data['type'] == 'antenna':
                 self._show_properties(data['id'])
             elif data['type'] == 'site':
-                # TODO: Abrir propiedades de sitio
-                pass
+                self._show_site_properties(data['id'])
     
     def _show_context_menu(self, position):
         """Muestra menú contextual"""
@@ -117,23 +117,54 @@ class ProjectPanel(QWidget):
             properties_action = QAction("Propiedades", self)
             properties_action.triggered.connect(lambda: self._show_properties(data['id']))
             menu.addAction(properties_action)
-            
+
             duplicate_action = QAction("Duplicar", self)
             duplicate_action.triggered.connect(lambda: self._duplicate_antenna(data['id']))
             menu.addAction(duplicate_action)
-            
+
             menu.addSeparator()
-            
+
             delete_action = QAction("Eliminar", self)
             delete_action.triggered.connect(lambda: self.antenna_delete_requested.emit(data['id']))
             menu.addAction(delete_action)
-        
+
+        elif data['type'] == 'site':
+            properties_action = QAction("Propiedades", self)
+            properties_action.triggered.connect(lambda: self._show_site_properties(data['id']))
+            menu.addAction(properties_action)
+
+            menu.addSeparator()
+
+            delete_action = QAction("Eliminar sitio", self)
+            delete_action.triggered.connect(lambda: self._delete_site(data['id']))
+            menu.addAction(delete_action)
+
         menu.exec(self.tree.viewport().mapToGlobal(position))
     
     def _add_site(self):
-        """Agrega un nuevo sitio"""
-        # TODO: Mostrar diálogo para crear sitio
-        pass
+        """Agrega un nuevo sitio mediante diálogo de propiedades."""
+        from src.models.site import Site
+        from src.ui.dialogs.site_properties_dialog import SitePropertiesDialog
+
+        new_site = Site()
+        dialog = SitePropertiesDialog(new_site, parent=self.window(),
+                                      antenna_manager=self.antenna_manager)
+
+        if dialog.exec():
+            props = dialog.get_properties()
+            for key, value in props.items():
+                if hasattr(new_site, key):
+                    setattr(new_site, key, value)
+            self.site_manager.add_site(new_site)
+
+            for ant_id in dialog.get_selected_antenna_ids():
+                self.site_manager.add_antenna_to_site(new_site.id, ant_id)
+                antenna = self.antenna_manager.get_antenna(ant_id)
+                if antenna:
+                    antenna.site_id = new_site.id
+
+            self.refresh()
+            self.logger.info(f"Site created: {new_site.name} ({new_site.id})")
     
     def _add_antenna(self):
         """Agrega una nueva antena"""
@@ -164,3 +195,52 @@ class ProjectPanel(QWidget):
         new_id = self.antenna_manager.duplicate_antenna(antenna_id)
         if new_id:
             self.refresh()
+
+    def _show_site_properties(self, site_id: str):
+        """Abre el diálogo de propiedades para un sitio existente."""
+        from src.ui.dialogs.site_properties_dialog import SitePropertiesDialog
+
+        site = self.site_manager.get_site(site_id)
+        if site is None:
+            return
+
+        prev_ids = set(site.antenna_ids)
+        dialog = SitePropertiesDialog(site, parent=self.window(),
+                                      antenna_manager=self.antenna_manager)
+        if dialog.exec():
+            self.site_manager.update_site(site_id, **dialog.get_properties())
+
+            new_ids = set(dialog.get_selected_antenna_ids())
+
+            for ant_id in new_ids - prev_ids:          # recién marcadas
+                self.site_manager.add_antenna_to_site(site_id, ant_id)
+                antenna = self.antenna_manager.get_antenna(ant_id)
+                if antenna:
+                    antenna.site_id = site_id
+
+            for ant_id in prev_ids - new_ids:          # desmarcadas
+                self.site_manager.remove_antenna_from_site(site_id, ant_id)
+                antenna = self.antenna_manager.get_antenna(ant_id)
+                if antenna:
+                    antenna.site_id = None
+
+            self.refresh()
+            self.logger.info(f"Site updated: {site_id}")
+
+    def _delete_site(self, site_id: str):
+        """Solicita confirmación y emite señal de eliminación del sitio."""
+        from PyQt6.QtWidgets import QMessageBox
+
+        site = self.site_manager.get_site(site_id)
+        if site is None:
+            return
+
+        reply = QMessageBox.question(
+            self.window(),
+            "Eliminar sitio",
+            f"¿Eliminar el sitio '{site.name}'?\n"
+            "Las antenas asociadas pasarán a ser independientes.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.site_delete_requested.emit(site_id)

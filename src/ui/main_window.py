@@ -317,11 +317,20 @@ class MainWindow(QMainWindow):
         # Señales del project panel
         self.project_panel.antenna_selected.connect(self.select_antenna)
         self.project_panel.antenna_delete_requested.connect(self.delete_antenna)
-        
+        self.project_panel.site_delete_requested.connect(self._on_site_delete_requested)
+
+        # Señales del site manager
+        self.site_manager.site_added.connect(self.project_panel.refresh)
+        self.site_manager.site_removed.connect(self.project_panel.refresh)
+        self.site_manager.site_modified.connect(self.project_panel.refresh)
+
         # Marcar proyecto como modificado cuando hay cambios
         self.antenna_manager.antenna_added.connect(self._mark_project_modified)
         self.antenna_manager.antenna_removed.connect(self._mark_project_modified)
         self.antenna_manager.antenna_modified.connect(self._mark_project_modified)
+        self.site_manager.site_added.connect(self._mark_project_modified)
+        self.site_manager.site_removed.connect(self._mark_project_modified)
+        self.site_manager.site_modified.connect(self._mark_project_modified)
     
     def _load_settings(self):
         """Carga configuración inicial"""
@@ -407,6 +416,12 @@ class MainWindow(QMainWindow):
                 self.antenna_manager.remove_antenna(antenna_id)
                 self.status_label.setText(f"Antena '{antenna.name}' eliminada")
     
+    def _on_site_delete_requested(self, site_id: str):
+        """Elimina el sitio y desvincula sus antenas (no las borra)."""
+        self.site_manager.remove_site(site_id, antenna_manager=self.antenna_manager)
+        self.project_panel.refresh()
+        self.status_label.setText("Sitio eliminado")
+
     @pyqtSlot(float, float)
     def on_antenna_placed(self, lat: float, lon: float):
         """Callback cuando se coloca una antena en el mapa"""
