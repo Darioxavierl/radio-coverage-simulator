@@ -23,9 +23,9 @@
 | Característica | Free Space | Okumura-Hata | COST-231 W-I | **COST-231 Hata** | ITU-R P.1546 | 3GPP 38.901 |
 |----------------|-----------|--------------|---------|-----------|-------------|-------------|
 | **Frecuencia** | Sin límite | 150–2000 MHz | 800–2000 MHz | **1500–2000 MHz** | 30–4000 MHz | 500–100000 MHz (0.5–100 GHz) |
-| **Distancia** | Sin límite | 1–20 km | 20 m–5 km | **0.02–5 km** | 1–1000 km | 10 m–10 km |
-| **Distinción LOS/NLOS** | No | No | Sí (heurístico) | **No (estadístico)** | **No** (TCA continuo, no binario) | Sí (probabilístico) |
-| **Uso de DEM/terreno** | No | Sí (h_eff) | Sí (h_eff + LOS) | **Sí (h_eff + estadística)** | Sí (h_eff + 3 tipos) | Opcional (Fresnel aprox.) |
+| **Distancia** | Sin límite | 1–20 km | 20 m–5 km | **0.02–5 km** | 1–1000 km (clipping a 1 km) | 10 m–10 km |
+| **Distinción LOS/NLOS** | No | No | Sí (geométrico con fallback heurístico) | **No (empírico con validity_mask)** | **No binario** (TCA continuo §4.5) | Sí (probabilístico) |
+| **Uso de DEM/terreno** | No | Sí (h_eff) | Sí (LOS geométrico + roughness local) | **Sí (h_eff con referencia de terreno)** | Sí (h_eff 3–15 km + TCA + clutter P.2108-1) | Opcional (knife-edge P.526 aditivo) |
 | **Parámetros urbanos** | No | No | Sí (h_edif, w_calle, φ) | **Sí (C_m)** | No | No |
 | **Escenarios** | Único | Urban/Suburban/Rural | Urban/Suburban/Rural | **Urban (medium/large)** | Urban/Suburban/Rural | UMa/UMi/RMa |
 | **Altura TX relevante** | No | Sí (30–200 m) | Sí (30–200 m) | **Sí (30–200 m)** | Sí (10–3000 m) | Sí (por escenario) |
@@ -42,8 +42,8 @@
 | Okumura-Hata | $69.55 + 26.16\log(f) - 13.82\log(h_b) - a(h_m) + [44.9-6.55\log(h_b)]\log(d)$ | 69.55 dB |
 | COST-231 W-I | $L_0 + L_{\text{rtd}} + L_{\text{msd}} + C_f$ | Lrtd con −16.9 dB |
 | **COST-231 Hata** | **$46.3 + 33.9\log(f) - 13.82\log(h_b) - a(h_m) + [44.9-6.55\log(h_b)]\log(d) + C_m$** | **46.3 dB (vs 69.55 OH)** |
-| ITU-R P.1546 | $PL = 139.3 + 20\log(f) - E_{\text{ITU}}(f,d,h_{\text{eff}}) + \Delta_{\text{TCA}} + \Delta_{\text{clutter}}$ | 139.3 dB (conversión E→PL) |
-| 3GPP 38.901 | $P_{LOS}\cdot PL_{LOS} + (1-P_{LOS})\cdot PL_{NLOS}$ | C2=−0.6 dB/m h_ue |
+| ITU-R P.1546 | $PL = 139.3 + 20\log(f_{MHz}) - E(f,d,h_{eff}) + \Delta_{TCA} + \Delta_{clutter} + \Delta_{percentile}$ | 139.3 dB (conversión E→PL) |
+| 3GPP 38.901 | $PL = P_{LOS}\cdot PL_{LOS}(d_{3D}, f_{GHz}) + (1-P_{LOS})\cdot PL_{NLOS}(d_{3D}, f_{GHz})$ | mezcla LOS/NLOS + `max(PL_LOS, PL'_NLOS)` |
 
 ---
 
@@ -102,55 +102,29 @@ Distancia a cubrir:
 
 ## 5. Interfaz Común — Cómo los Llama CoverageCalculator
 
-Todos los modelos implementan la misma interfaz:
+Todos los modelos implementan la misma llamada pública desde `CoverageCalculator`, pero no todos retornan exactamente el mismo tipo intermedio. Algunos devuelven directamente un `ndarray`; otros retornan un `dict` con `path_loss` y metadatos de validez.
 
 ```python
-path_loss = model.calculate_path_loss(
-    distances,       # np.ndarray, metros
-    frequency,       # float, MHz
-    tx_height,       # float, m AGL
-    terrain_heights, # np.ndarray, msnm
-    tx_elevation,    # float, msnm (default 0.0)
-    environment,     # str
-    **model_params   # parámetros específicos del modelo
+result = model.calculate_path_loss(
+    distances=distances,          # np.ndarray, metros
+    frequency=antenna.frequency_mhz,
+    tx_height=antenna.height_agl,
+    tx_elevation=tx_elevation,
+    terrain_heights=terrain_heights,
+    **model_params
 )
-# → np.ndarray, dB, mismo shape que distances
+
+path_loss = result['path_loss'] if isinstance(result, dict) else result
 ```
 
 **Código de CoverageCalculator:**
 ```python
 # src/core/coverage_calculator.py
+result = model.calculate_path_loss(**path_loss_args)
+path_loss = result['path_loss'] if isinstance(result, dict) else result
 
-def _calculate_path_loss(self, antenna, grid_lats, grid_lons, terrain_heights):
-    # 1. Distancias Haversine (siempre en metros)
-    distances = self._haversine_distances(
-        antenna.lat, antenna.lon, grid_lats, grid_lons
-    )  # shape (H, W), en metros
-
-    # 2. Elevación del sitio TX (interpolada del DEM)
-    antenna_elevation = self._get_elevation(antenna.lat, antenna.lon)
-
-    # 3. Argumentos comunes a todos los modelos
-    path_loss_args = {
-        'distances':       distances,
-        'frequency':       antenna.frequency_mhz,
-        'tx_height':       antenna.height_agl,
-        'terrain_heights': terrain_heights,
-        'tx_elevation':    antenna_elevation,
-        'environment':     simulation_params.get('environment', 'Urban'),
-    }
-
-    # 4. Parámetros específicos del modelo seleccionado
-    model_params = simulation_params.get('model_params', {})
-    path_loss_args.update(model_params)
-
-    # 5. Calcular — todos usan la misma llamada
-    path_loss = self.propagation_model.calculate_path_loss(**path_loss_args)
-
-    return path_loss   # dB, shape (H, W)
-
-# 6. RSRP
-rsrp = antenna.tx_power_dbm + antenna.tx_gain_dbi - path_loss
+antenna_gain = self._apply_antenna_pattern(...)
+rsrp = antenna.tx_power_dbm + antenna_gain - path_loss
 ```
 
 ---
@@ -180,26 +154,15 @@ Cada modelo convierte las distancias (siempre recibidas en metros) a sus unidade
 
 ## 7. Patrón de Integración del Terreno
 
-Todos los modelos que usan el DEM aplican el mismo patrón de altura efectiva:
+Los modelos que consumen DEM no comparten un único esquema de altura efectiva. Cada uno usa el terreno de manera distinta:
 
-$$h_{tx,\text{eff}} = h_{\text{ant}} + h_{\text{elev,TX}} - \overline{h_{\text{terreno}}}$$
-
-donde $\overline{h_{\text{terreno}}} = \text{mean}(\texttt{terrain\_heights})$ es la elevación promedio de la grilla.
-
-```python
-# Patrón uniforme en Okumura-Hata, COST-231 e ITU-R P.1546
-terrain_avg = self.xp.mean(terrain_heights_flat)
-h_eff = tx_height + tx_elevation - terrain_avg
-h_eff = self.xp.maximum(h_eff, h_min)   # clipping inferior
-h_eff = self.xp.minimum(h_eff, h_max)   # clipping superior
-```
-
-| Modelo | h_min | h_max |
-|--------|-------|-------|
-| Okumura-Hata | 30 m | 200 m |
-| COST-231 | 30 m | 200 m |
-| ITU-R P.1546 | Sin clipping | Sin clipping |
-| 3GPP 38.901 | N/A (usa h_bs configurable) | N/A |
+| Modelo | Uso del terreno en código |
+|--------|---------------------------|
+| Okumura-Hata | `h_b,eff = h_tx + z_tx - z_ref`, con `z_ref` configurable (`global_mean`, `local_annulus_mean`, `tx_local_mean`) |
+| COST-231 W-I | terreno para LOS geométrico, `building_height` local estimado desde roughness y altura efectiva TX basada en promedio del terreno |
+| COST-231 Hata | `h_b,eff = h_tx + z_tx - z_ref`, con los mismos métodos de referencia que Okumura-Hata |
+| ITU-R P.1546 | `h_eff = h_tx + z_tx - z_mean(3–15 km)` cuando hay DEM y trayectos largos; si `d < 15 km`, usa `h_tx_AGL` |
+| 3GPP 38.901 | no calcula `h_eff`; usa `h_bs`/`h_ue` y opcionalmente una corrección knife-edge aditiva sobre DEM |
 
 ---
 
@@ -209,32 +172,30 @@ h_eff = self.xp.minimum(h_eff, h_max)   # clipping superior
 |--------|----------------|-------------|
 | Free Space | Ninguno | Asume siempre LOS perfecto |
 | Okumura-Hata | Ninguno | Pérdida mediana L₅₀ (ambas condiciones) |
-| COST-231 | Heurístico: `delta_h > 30 m` | LOS uniforme para toda la grilla |
+| COST-231 | Geométrico por perfil radial; fallback heurístico si no hay perfiles | LOS/NLOS por receptor |
 | ITU-R P.1546 | TCA continuo: `ΔE = f(arctan(z_rel/d))` | Corrección gradual por punto |
 | 3GPP 38.901 | Probabilístico: `P_LOS(d) = min(C1/d,1)·(1−e^{−d/C2}) + e^{−d/C2}` | Interpolación continua |
 
 **Detalle de cada criterio:**
 
-### COST-231 — Heurístico de Altura
+### COST-231 — Geométrico con fallback heurístico
 ```python
-delta_h = (tx_height + tx_elevation) - mean(terrain_heights)
-los_mask[:] = (delta_h > 30.0)   # toda la grilla con mismo estado
+if terrain_profiles is not None:
+    los_mask = self._calculate_los_nlos_geometric_vectorized(...)
+else:
+    los_mask = self._determine_los_nlos_legacy(...)
 ```
 
 ### P.1546 — TCA Continuo (sin LOS/NLOS binario)
 
 P.1546 **no** implementa LOS/NLOS binario (`has_los_nlos = False`). En su lugar
-aplicar una corrección continua de Terrain Clearance Angle (§4.5):
+aplica una corrección continua de Terrain Clearance Angle (§4.5) basada en la función $J(\theta)$ del estándar:
 
 ```python
-# TCA = ángulo máximo de elevación del terreno visto desde TX
-angles_deg = np.degrees(np.arctan2(z_relative, distances_km))
-tca_deg = np.max(angles_deg, axis=1)
-
-# Corrección continua (0 dB a −5 dB)
-correction = np.where(tca_deg < -2, 0,
-               np.where(tca_deg > 2, -5,
-                 -2.5 * (tca_deg + 2) / 4))
+theta_tc = max(theta_i_en_ventana_0_15_km_desde_RX)
+t = theta_tc - 0.1
+J_theta = 6.9 + 20 * log10(sqrt(t * t + 1) + t)
+tca_db = where(theta_tc > 0.0, J_theta, 0.0)
 ```
 
 Existe `_calculate_radio_horizon(h_tx, h_rx)` = `4.12 * (sqrt(h_tx) + sqrt(h_rx))` km,
@@ -244,6 +205,9 @@ pero es un método **informativo** que **no se invoca** en `calculate_path_loss`
 ```python
 P_LOS(d) = min(C1/d, 1) * (1 - exp(-d/C2)) + exp(-d/C2)
 PL = P_LOS * PL_LOS + (1 - P_LOS) * PL_NLOS   # por punto
+
+# Si use_dem=True:
+PL = PL + L_diff   # corrección knife-edge aditiva, no ponderada por (1 - P_LOS)
 ```
 
 ---

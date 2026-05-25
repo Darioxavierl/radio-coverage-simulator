@@ -25,6 +25,8 @@
 - ✅ GPU-compatible (CuPy)
 - ✅ Validación de parámetros automática
 
+> **Nota de implementación:** el código trabaja con dos nociones de distancia: `d_km_real` para validar el rango óptimo del modelo y `d_km_model = max(d_km_real, 0.001)` para evitar `log(0)` en receptores extremadamente cercanos al TX. Por ello, puntos con `d < 0.02 km` pueden seguir calculándose, pero quedan marcados con `validity_mask=False` y deben interpretarse como extrapolación fuera del rango de confianza del modelo.
+
 ---
 
 ## Ecuación Base
@@ -91,7 +93,7 @@ COST-231 Hata (óptimo):      ~130 dB
 Diferencia:                  ~25 dB
 ```
 
-Esto es correcto: A frecuencias 4G más altas, la propagación es mejor (menos pérdida por longitud de onda más corta en la ecuación de friis adaptada).
+La diferencia numérica entre ambos modelos depende de sus coeficientes empíricos y del rango de calibración para 4G/LTE. No debe interpretarse de forma simplista como que una frecuencia más alta "propaga mejor"; en términos físicos generales, el incremento de frecuencia tiende a aumentar la pérdida, pero COST-231 Hata reparametriza el ajuste empírico para el dominio 1500-2000 MHz.
 
 ---
 
@@ -146,7 +148,7 @@ config = {
 | Parámetro | Rango Óptimo | Rango Extrapolable | Nota |
 |-----------|-------------|-------------------|------|
 | Frecuencia | 1500-2000 MHz | 800-2200 MHz | COST-231 requiere 1500-2000 |
-| Distancia | 0.02-5 km | 0-20 km | Extrap. externa confiable |
+| Distancia | 0.02-5 km | 0-20 km | `d < 0.02 km` queda fuera de rango; el código clipa internamente a 0.001 km para estabilidad numérica |
 | Altura BS | 30-100 m | 20-200 m | Mayor altura = mejor predicción |
 | Altura móvil | 1.5-2 m | 1-10 m | Típico: 1.5 m |
 | Ambiente | Urban | - | Solo Urban (COST-231 Hata) |
@@ -161,6 +163,13 @@ El modelo valida automáticamente:
 ✅ Altura móvil en rango 1-10 m (warning si fuera de rango)
 
 **Receptores fuera de rango se marcan con validity_mask=False** para identificarlas en post-procesamiento.
+
+La implementación separa explícitamente:
+
+- `d_km_real`: distancia física real usada para construir `validity_mask`
+- `d_km_model`: distancia usada en la ecuación, con `max(d_km_real, 0.001)` para evitar singularidades numéricas
+
+Esto permite mantener estabilidad computacional sin confundir validez matemática con posibilidad de cálculo.
 
 ---
 

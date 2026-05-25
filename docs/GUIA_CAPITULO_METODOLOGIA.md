@@ -81,8 +81,8 @@ Descripción de la estrategia de desarrollo adoptada, con justificación académ
   implementaciones de terceros. Mencionar los estándares consultados:
   - ITU-R P.1546-6 (agosto 2019)
   - ITU-R P.2108-1 (clutter)
-  - ITU-R P.417 (difracción Fresnel)
-  - 3GPP TR 38.901 v16.1.0
+  - ITU-R P.526-15 (difracción knife-edge)
+  - Familia 3GPP TR 38.901
   - COST-231 / ITU-R P.1411-8
 
 ### Diagrama sugerido
@@ -98,8 +98,8 @@ Pruebas unitarias → Comparación con Atoll → Ajuste → siguiente iteración
 | 2 | Okumura-Hata | ITU-R P.1546, Hata 1980 | Test unitario |
 | 3 | COST-231 W-I | ITU-R P.1411-8 | Comparación teórica |
 | 4 | ITU-R P.1546 + DEM | P.1546-6, P.2108-1 | Perfiles radiales |
-| 5 | 3GPP TR 38.901 | 3GPP TR 38.901 v16.1.0 | Parámetros TR |
-| 6 | LOS + Exportación | ITU-R P.417, P.526 | Validación geométrica |
+| 5 | 3GPP TR 38.901 | Familia 3GPP TR 38.901 | Parámetros TR |
+| 6 | LOS + Exportación | ITU-R P.526 | Validación geométrica |
 | 6+ | Patrón 3D antena | 3GPP TR 38.901 §7.3.2 | Test unitario 3D |
 
 ---
@@ -590,7 +590,7 @@ que debe justificarse: el estándar §4.3 explícitamente requiere la media hast
 
 ---
 
-### 7.5 3GPP TR 38.901 v16.1.0
+### 7.5 3GPP TR 38.901
 
 **Tipo**: Estocástico-geométrico (LOS/NLOS probabilístico). Referencia: 3GPP TR 38.901.
 
@@ -1167,7 +1167,7 @@ Una buena tesis documenta las limitaciones tanto como los logros.
 - **ITU-R P.526-15** (2019): Propagation by diffraction. Geneva: ITU.
 
 ### Estándares 3GPP
-- **3GPP TR 38.901 v16.1.0** (2020): Study on channel model for frequencies from 0.5 to 100 GHz.
+- **3GPP TR 38.901**: Study on channel model for frequencies from 0.5 to 100 GHz.
 
 ### Publicaciones Seminal de Modelos
 - **Hata, M.** (1980): Empirical formula for propagation loss in land mobile radio services. *IEEE Transactions on Vehicular Technology*, 29(3), 317–325.
