@@ -833,14 +833,25 @@ El foco académico debe estar en las decisiones de diseño, no en los componente
 
 #### 11.2 Gestión de Proyectos
 - Los proyectos se serializan a JSON (`.rfproj`) mediante `ProjectManager`.
-- Incluyen todas las antenas, parámetros de simulación y configuración de terreno.
+- Incluyen antenas, sitios, centro/zoom del mapa, archivo de terreno y configuración de simulación.
 - Formato legible por humanos, extensible.
+
+#### 11.2.1 Organización visual del proyecto
+- Explicar que el panel lateral no muestra solo una lista plana de antenas.
+- La UI actual organiza el proyecto en un árbol con sitios y sus antenas asociadas, además de antenas independientes.
+- Justificar por qué esta representación coincide mejor con la estructura lógica del dominio (`Site`, `Antenna`, `Project`).
+
+#### 11.2.2 Configuración operativa de la simulación
+- Mencionar que `SimulationDialog` adapta los parámetros visibles según el modelo elegido.
+- Indicar que allí se concentran radio, resolución, override de frecuencia, parámetros específicos por modelo y estado del DEM.
+- Enfatizar que la GUI incorpora reglas del dominio RF, no solo controles genéricos.
 
 #### 11.3 Renderizado de Resultados
 - El heatmap de RSRP se genera como PNG base64 en el hilo de simulación.
 - Se transmite al mapa Leaflet como *ImageOverlay* georeferenciado con bounds lat/lon.
-- La leyenda dinámica se actualiza con el rango de valores reales.
-- Superposición separada para el mapa LOS (semitransparente, verde/gris).
+- La capa agregada se muestra visible por defecto; las capas individuales quedan disponibles en el panel de overlays.
+- La leyenda dinámica se actualiza con el rango real de la capa RSRP que el usuario active.
+- El mapa LOS se registra como overlay separado y activable independientemente de RSRP.
 
 ---
 
@@ -851,26 +862,43 @@ Descripción técnica de los tres formatos de exportación y su pertinencia cien
 
 ### Formato CSV
 
-**Estructura**: Una fila por punto de la grilla, con columnas:
+**Estructura real**: una fila por punto de grilla y por antena. Las columnas base son
 `antenna_id, frequency_mhz, tx_power_dbm, tx_height_m, grid_lat, grid_lon,`
-`rsrp_dbm, path_loss_db, antenna_gain_dbi, model_used, environment, terrain_type, los_nlos`
+`rsrp_dbm, path_loss_db, antenna_gain_dbi, model_used, environment, terrain_type`.
+La columna `los_nlos` solo aparece cuando al menos una cobertura individual contiene
+`los_map`.
 
-**Relevancia**: Permite comparativa cuantitativa punto a punto contra Atoll u otras
-herramientas. Importable directamente en Python/R/Excel para análisis estadístico.
+**Relevancia**: Permite comparativa cuantitativa punto a punto contra otras herramientas,
+postprocesamiento en Python/R/Excel y trazabilidad directa de parametros RF junto con cada
+valor exportado.
+
+### Formato Metadata JSON
+
+- Se exporta junto con el CSV.
+- Resume timestamp, modelo usado, parametros de grilla, configuracion del modelo,
+  informacion de rendimiento CPU/GPU y descripcion de los campos del CSV.
+- Es una decision de implementacion propia para reproducibilidad; no corresponde a un
+  formato estandar de interoperabilidad geoespacial.
 
 ### Formato GeoTIFF
 
-- Raster georreferenciado con RSRP y LOS como bandas.
-- CRS: WGS84 (EPSG:4326).
-- Resolución de píxel = resolución de la grilla de simulación.
-- Compatible con QGIS, ArcGIS, Google Earth Engine.
-- Permite análisis espacial: solapamiento con datos de usuarios, zonas de cobertura, etc.
+- Raster georreferenciado multibanda.
+- La implementacion exporta, como minimo, tres bandas: `RSRP`, `Path Loss` y
+  `Antenna Gain`.
+- Si existe `los_map`, anade una cuarta banda LOS/NLOS.
+- La grilla original esta en `EPSG:4326`, pero la GUI permite exportar tambien a
+  `EPSG:32717` o `EPSG:32718` mediante reproyeccion con `rasterio`.
+- Compatible con QGIS y ArcGIS para analisis espacial posterior.
 
 ### Formato KML
 
 - Google Earth Markup Language.
-- Polígonos de cobertura por umbral de RSRP (configurable, default: −100 dBm).
-- Permite visualización 3D en Google Earth con terreno extruido.
+- La implementacion real no exporta poligonos de cobertura como producto principal.
+- Exporta un `GroundOverlay` con el heatmap RSRP y, si existe, un segundo overlay LOS.
+- Si las imagenes vienen como `data:image/...;base64`, se decodifican a PNG externos para
+  mejorar compatibilidad con visores KML.
+- Resulta util para inspeccion visual rapida en Google Earth, no para analitica raster
+  avanzada como la que habilita GeoTIFF.
 
 ---
 

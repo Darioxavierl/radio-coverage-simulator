@@ -106,8 +106,8 @@ flowchart LR
 | Punto de entrada | `run.py` | Entrada | Prepara `sys.path` y delega a `main` |
 | `MainWindow` | `src/ui/main_window.py` | UI | Composicion principal, menus, toolbars, eventos |
 | `MapWidget` | `src/ui/widgets/map_widget.py` | UI | Mapa Leaflet, puente Python/JavaScript |
-| `ProjectPanel` | `src/ui/panels/project_panel.py` | UI | Panel de proyecto con lista de antenas |
-| `SimulationDialog` | `src/ui/dialogs/` | UI | Dialogo de configuracion de simulacion |
+| `ProjectPanel` | `src/ui/panels/project_panel.py` | UI | Árbol de sitios y antenas independientes, con acciones contextuales |
+| `SimulationDialog` | `src/ui/dialogs/simulation_dialog.py` | UI | Diálogo de configuración de simulación con parámetros por modelo |
 | `ProjectManager` | `src/core/project_manager.py` | Core | Ciclo de vida de proyectos, persistencia, backup |
 | `AntennaManager` | `src/core/antenna_manager.py` | Core | Estado y eventos de antenas |
 | `SiteManager` | `src/core/site_manager.py` | Core | Gestion de sitios |
@@ -145,9 +145,9 @@ graph TD
     I -->|NO| K["Construir metadata"]
     J -->|rsrp_agg, best_server| K
     K -->|timestamp, gpu_used, timings| L["Emitir finished(results)"]
-    L --> M["MainWindow._on_simulation_finished()"]
-    M -->|image_url + bounds| N["MapWidget.add_coverage_layer()"]
-    N --> O["Heatmap visible en mapa"]
+    L --> M["MainWindow.on_simulation_finished()"]
+    M -->|coverage dict| N["MapWidget.show_coverage()"]
+    N --> O["RSRP agregado visible + overlays individuales/LOS disponibles"]
 ```
 
 ### 5.2 Estructura de datos de entrada (config)
@@ -549,35 +549,39 @@ Se usa `time.perf_counter()` (resolucion sub-microsegundo en Windows/Linux) para
 
 | Formato | Extension | Contenido | Uso tipico |
 |---------|-----------|-----------|------------|
-| CSV | `.csv` | Tabla de puntos: lat, lon, RSRP, path loss, ganancia | Excel, Python, analisis estadistico |
-| Metadata JSON | `_metadata.json` | Parametros, tiempos, configuracion | Reproducibilidad, auditoria |
-| KML | `.kml` | Heatmap georreferenciado como GroundOverlay | Google Earth |
-| GeoTIFF | `.tif` | Raster 3 bandas (RSRP, path loss, ganancia) | QGIS, ArcGIS |
+| CSV | `.csv` | Tabla detallada por antena y por punto de grilla | Excel, Python, analisis estadistico |
+| Metadata JSON | `_metadata.json` | Parametros, tiempos, configuracion y descripcion de datos | Reproducibilidad, auditoria |
+| KML | `.kml` | Heatmap georreferenciado como `GroundOverlay`, con LOS opcional | Google Earth |
+| GeoTIFF | `.tif` | Raster multibanda: RSRP, path loss, ganancia y LOS opcional | QGIS, ArcGIS |
 
 ### 11.2 Flujo del ExportManager
 
 ```
-results dict (de SimulationWorker)
+MainWindow.export_results(format_type)
     │
-    ├─ export_csv()
-    │     → Iterar puntos de coverage['individual']
-    │     → Escribir fila por punto con valores de cada antena
+    ├─ Verifica existencia de last_simulation_results
+    ├─ Construye nombre base con timestamp
+    ├─ Solicita ruta de salida al usuario
     │
-    ├─ export_metadata_json()
-    │     → Extraer results['metadata']
-    │     → Serializar con schema estandar
+    ├─ CSV
+    │     ├─ export_csv()
+    │     │     → Iterar coberturas individuales
+    │     │     → Escribir una fila por punto de grilla y por antena
+    │     └─ export_metadata_json()
+    │           → Serializar metadata de reproducibilidad
     │
-    ├─ export_kml()
-    │     → Usar coverage['aggregated'] si existe
-    │     → Extraer image_url (PNG base64)
-    │     → Decodificar PNG y guardar como archivo separado
-    │     → Escribir KML con GroundOverlay
+    ├─ KML
+    │     → export_kml()
+    │         → Priorizar coverage['aggregated'] si existe
+    │         → Decodificar overlays PNG desde base64 si corresponde
+    │         → Escribir GroundOverlay de cobertura y overlay LOS opcional
     │
-    └─ export_geotiff()
-          → Usar coverage['aggregated'] si existe
-          → Crear transform Affine desde bounds del grid
-          → Escribir 3 bandas: RSRP, path_loss, antenna_gain
-          → CRS: EPSG:4326 (WGS84)
+    └─ GeoTIFF
+          → export_geotiff()
+              → Priorizar coverage['aggregated'] si existe
+              → Crear transform georreferenciado desde la grilla
+              → Reproyectar si el usuario selecciona un CRS distinto
+              → Escribir 3 bandas base + banda LOS opcional
 ```
 
 ### 11.3 Ubicacion de archivos exportados

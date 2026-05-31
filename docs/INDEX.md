@@ -93,9 +93,9 @@ Este documento sirve como índice maestro para la documentación técnica del si
 ## 💾 Fase 8: Exportación y Validación — **REESCRITA**
 - [05_EXPORTACION.md](05_EXPORTACION.md): **EXHAUSTIVO**
   - ExportManager clase principal
-  - CSV (puntos, estadísticas)
-  - KML (marcadores antenas)
-  - GeoTIFF (raster georeferenciado)
+  - CSV detallado por punto de grilla
+  - KML con GroundOverlay
+  - GeoTIFF multibanda georeferenciado
   - Metadata JSON
   - Validaciones y timing
 - [05_VALIDACION.md](05_VALIDACION.md): Validación, pruebas, cobertura (incluye matriz específica para 3GPP Modo 2 con terreno).

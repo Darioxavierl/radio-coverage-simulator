@@ -1,750 +1,265 @@
-# Interfaz Gráfica: GUI con PyQt6, QWebEngineView y Leaflet
+# Interfaz Gráfica: arquitectura real de la GUI
 
-**Versión:** 2026-05-08
+**Versión:** 2026-05-27
 
 ## 1. Propósito
 
-La interfaz gráfica es el punto de interacción entre el usuario y el motor de simulación. Utiliza PyQt6 para UI nativa, QWebEngineView + Leaflet.js para visualización cartográfica, y Qt Bridge para comunicación bidireccional Python↔JavaScript.
+La interfaz gráfica es la capa que conecta la configuración del proyecto con el pipeline de simulación y con la visualización cartográfica de resultados. La aplicación está construida con PyQt6 como framework de escritorio, mientras que el mapa se renderiza dentro de un `QWebEngineView` usando Leaflet y un puente `QWebChannel` entre Python y JavaScript.
 
-## 2. Stack Tecnológico
+La GUI no es solo una capa visual. En la implementación actual coordina cuatro tareas concretas:
 
-```
-┌──────────────────────────────────┐
-│ Aplicación Python (PyQt6)        │
-├──────────────────────────────────┤
-│ MainWindow                       │
-│  ├─ Project Panel (árbol)        │
-│  ├─ Dialogs (simulación, etc.)   │
-│  └─ MapWidget ─────┐             │
-│                    │             │
-├────────────────────▼─────────────┤
-│ QWebEngineView (Chromium)        │
-│ ┌──────────────────────────────┐ │
-│ │ HTML/CSS/JavaScript          │ │
-│ │  ├─ Leaflet.js               │ │
-│ │  ├─ OSM/Satellite layers     │ │
-│ │  ├─ Markers (antenas)        │ │
-│ │  └─ ImageOverlay (cobertura) │ │
-│ └──────────────────────────────┘ │
-│ ┌──────────────────────────────┐ │
-│ │ Qt WebChannel (puente JSON)  │ │
-│ │ signal↔slot thread-safe      │ │
-│ └──────────────────────────────┘ │
-└──────────────────────────────────┘
-```
-
-## 3. Arquitectura: MapWidget y Puente Python↔JavaScript
-
-### 3.1 Clase MapBridge (Python → JavaScript)
-
-**Ubicación**: `src/ui/widgets/map_widget.py`, líneas 13-80
-
-```python
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-
-class MapBridge(QObject):
-    """
-    Puente bidireccional entre Python y JavaScript.
-    
-    Proporciona:
-    - Signals (Python → JavaScript): emisor de comandos
-    - Slots (JavaScript → Python): receptor de eventos
-    """
-    
-    # ────────────────────────────────────────────────────
-    # SIGNALS: Python emite, JavaScript recibe
-    # ────────────────────────────────────────────────────
-    
-    # Agregar marcador de antena en mapa
-    add_antenna_marker = pyqtSignal(str, float, float, str, str)
-    # Parámetros: antenna_id, lat, lon, name, color
-    # Ej: bridge.add_antenna_marker.emit('ant-001', -2.9001, -79.0059, 'Sitio Principal', '#FF0000')
-    
-    # Eliminar marcador de antena
-    remove_antenna_marker = pyqtSignal(str)
-    # Parámetro: antenna_id
-    
-    # Actualizar marcador (mover, cambiar color)
-    update_antenna_marker = pyqtSignal(str, float, float, float, str)
-    # Parámetros: antenna_id, lat, lon, azimuth_degrees, color
-    
-    # Agregar capa de cobertura (heatmap)
-    add_coverage_layer = pyqtSignal(str, str, float, float, float, float)
-    # Parámetros: antenna_id, image_data_url (base64), lat_min, lon_min, lat_max, lon_max
-    # image_data_url: "data:image/png;base64,iVBORw0KGgo..."
-    
-    # Eliminar capa de cobertura
-    remove_coverage_layer = pyqtSignal(str)
-    # Parámetro: antenna_id
-    
-    # Actualizar leyenda de cobertura con rango real de RSRP
-    update_coverage_legend = pyqtSignal(float, float)
-    # Parámetros: vmin_dBm, vmax_dBm (rango dinámico percentil 5/95 usado en el colormap)
-    # Ejemplo: bridge.update_coverage_legend.emit(-95.3, -52.1)
-
-    # Agregar capa LOS (mapa de ocultamiento por terreno)
-    add_los_layer = pyqtSignal(str, str, float, float, float, float)
-    # Parámetros: antenna_id, image_data_url (base64), lat_min, lon_min, lat_max, lon_max
-    # La capa se agrega al control Leaflet pero inicia OCULTA; usuario la activa
-    # desde el panel de capas (L.control.layers)
-
-    # Registrar nombre de display de una capa de overlay
-    register_layer_name = pyqtSignal(str, str)
-    # Parámetros: antenna_id, display_name
-    # Utilizado para mostrar nombres legibles ("RSRP: Sitio A", "LOS: Sitio A")
-    # en el panel de capas Leaflet
-
-    # Agregar capa RSRP oculta (disponible en panel de capas, no visible en mapa)
-    add_hidden_coverage_layer = pyqtSignal(str, str, float, float, float, float)
-    # Parámetros: antenna_id, image_data_url (base64), lat_min, lon_min, lat_max, lon_max
-    # Diferencia con add_coverage_layer: la imageOverlay NO se añade al mapa con .addTo(map)
-    # El checkbox en el panel de Leaflet aparece desmarcado
-
-    # Guardar rango RSRP por antena para la leyenda dinámica
-    store_rsrp_range = pyqtSignal(str, float, float)
-    # Parámetros: antenna_id, vmin_dBm, vmax_dBm
-    # Almacena en JS: rsrpRanges[antennaId] = { vmin, vmax }
-    # El dict rsrpRanges es consultado por el listener overlayadd
-    # para mostrar la leyenda correcta cuando el usuario activa una capa individual
-
-    # Cambiar modo del mapa
-    set_map_mode = pyqtSignal(str)
-    # Parámetro: 'pan' (normal) | 'add_antenna' (agregar antena) | 'move_antenna' (mover)
-    
-    # Centrar mapa
-    center_map = pyqtSignal(float, float, int)
-    # Parámetros: lat, lon, zoom_level
-    
-    # ────────────────────────────────────────────────────
-    # SLOTS: JavaScript emite, Python recibe
-    # ────────────────────────────────────────────────────
-    
-    # Eventos de usuario en mapa
-    antenna_clicked_on_map = pyqtSignal(float, float)      # lat, lon (click para agregar antena)
-    antenna_marker_clicked = pyqtSignal(str)               # antenna_id (click en marcador)
-    antenna_marker_moved = pyqtSignal(str, float, float)  # antenna_id, lat, lon (drag antena)
-    antenna_marker_selected = pyqtSignal(str)             # antenna_id (seleccionar)
-    map_clicked = pyqtSignal(float, float)                # lat, lon (click general)
-    map_center_response = pyqtSignal(float, float, int)   # lat, lon, zoom (respuesta de posición)
-    
-    # ────────────────────────────────────────────────────
-    # SLOTS PYTHON (receptores de JavaScript)
-    # ────────────────────────────────────────────────────
-    
-    @pyqtSlot(float, float)
-    def on_map_click(self, lat: float, lon: float):
-        """Callback desde JavaScript: usuario hizo click en mapa"""
-        self.logger.debug(f"Map clicked at ({lat}, {lon})")
-        self.map_clicked.emit(lat, lon)
-    
-    @pyqtSlot(str, float, float)
-    def on_antenna_marker_moved(self, antenna_id: str, lat: float, lon: float):
-        """Callback desde JavaScript: usuario arrastró marcador de antena"""
-        self.logger.debug(f"Antenna {antenna_id} moved to ({lat}, {lon})")
-        self.antenna_marker_moved.emit(antenna_id, lat, lon)
-    
-    @pyqtSlot(str)
-    def on_antenna_marker_clicked(self, antenna_id: str):
-        """Callback desde JavaScript: usuario hizo click en marcador"""
-        self.logger.debug(f"Antenna marker {antenna_id} clicked")
-        self.antenna_marker_clicked.emit(antenna_id)
-    
-    @pyqtSlot(float, float, int)
-    def on_map_center(self, lat: float, lon: float, zoom: int):
-        """Callback desde JavaScript: solicitud de información de centro del mapa"""
-        self.map_center_response.emit(lat, lon, zoom)
-```
-
-### 3.2 HTML Base del Mapa
-
-**Ubicación**: `src/ui/widgets/map_widget.py`, método `_load_map_html()`
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RF Coverage Map</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
-    
-    <!-- Qt WebChannel para puente Python↔JS -->
-    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-    
-    <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
-        #map { width: 100%; height: 100%; }
-        .antenna-popup { font-family: Arial, sans-serif; font-size: 12px; }
-        .coverage-layer { opacity: 0.6; }
-        #coverage-legend {
-            background: white; padding: 8px 10px; border-radius: 6px;
-            box-shadow: 0 1px 5px rgba(0,0,0,.35); font: 12px/1.4 Arial,sans-serif;
-            display: none; min-width: 72px; pointer-events: none;
-        }
-        #coverage-legend .leg-title { font-weight: bold; font-size: 11px; color: #333;
-            text-align: center; margin-bottom: 5px; }
-        #coverage-legend .leg-wrap { display: flex; align-items: stretch; height: 130px; }
-        #coverage-legend .leg-bar { width: 18px;
-            background: linear-gradient(to top, #00007f, #0000ff, #007fff, #00ffff,
-                #7fff7f, #ffff00, #ff7f00, #ff0000, #7f0000);
-            border-radius: 2px; margin-right: 5px; }
-        #coverage-legend .leg-labels { display: flex; flex-direction: column;
-            justify-content: space-between; font-size: 10px; color: #444; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-    
-    <script>
-        // ─────────────────────────────────────
-        // VARIABLES GLOBALES
-        // ─────────────────────────────────────
-        let map;
-        let bridge;
-        let antennaMarkers = {};           // antenna_id → L.marker
-        let coverageLayers = {};           // antenna_id → L.imageOverlay
-        let currentMode = 'pan';           // 'pan', 'add_antenna', 'move_antenna'
-        let legendControl = null;          // control Leaflet para la leyenda RSRP
-        
-        // ─────────────────────────────────────
-        // INICIALIZACIÓN DEL MAPA
-        // ─────────────────────────────────────
-        function initMap() {
-            // Crear mapa centrado en Cuenca, Ecuador
-            map = L.map('map').setView([-2.9001, -79.0059], 13);
-            
-            // Capa base: OpenStreetMap
-            const osmLayer = L.tileLayer(
-                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 19,
-                    minZoom: 5
-                }
-            );
-            osmLayer.addTo(map);
-            
-            // Capa alternativa: Satélite (ESRI)
-            const satelliteLayer = L.tileLayer(
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                {
-                    attribution: '© ESRI',
-                    maxZoom: 19
-                }
-            );
-            
-            // Control de capas
-            const layerControl = L.control.layers(
-                {
-                    'OpenStreetMap': osmLayer,
-                    'Satellite': satelliteLayer
-                },
-                null,
-                { position: 'topright' }
-            );
-            layerControl.addTo(map);
-            
-            // Controles estándar
-            L.control.scale().addTo(map);
-            
-            // Event listeners
-            map.on('click', handleMapClick);
-            map.on('moveend', handleMapMove);
-        }
-        
-        // ─────────────────────────────────────
-        // EVENT HANDLERS
-        // ─────────────────────────────────────
-        
-        function handleMapClick(e) {
-            const lat = e.latlng.lat;
-            const lon = e.latlng.lng;
-            
-            if (currentMode === 'add_antenna') {
-                // Usuario quiere agregar antena
-                bridge.on_map_click(lat, lon);
-            } else if (currentMode === 'pan') {
-                // Modo normal: solo informar
-                bridge.on_map_click(lat, lon);
-            }
-        }
-        
-        function handleMapMove() {
-            const center = map.getCenter();
-            const zoom = map.getZoom();
-            bridge.on_map_center(center.lat, center.lng, zoom);
-        }
-        
-        // ─────────────────────────────────────
-        // FUNCIONES DE ANTENAS
-        // ─────────────────────────────────────
-        
-        function addAntennaMarker(antenna_id, lat, lon, name, color) {
-            if (antennaMarkers[antenna_id]) {
-                removeAntennaMarker(antenna_id);
-            }
-            
-            // Crear marcador personalizado
-            const marker = L.circleMarker([lat, lon], {
-                radius: 8,
-                fillColor: color,
-                color: '#000',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8,
-                draggable: true
-            });
-            
-            // Popup
-            const popupContent = `
-                <div class="antenna-popup">
-                    <b>${name}</b><br/>
-                    Lat: ${lat.toFixed(4)}<br/>
-                    Lon: ${lon.toFixed(4)}<br/>
-                    ID: ${antenna_id}
-                </div>
-            `;
-            marker.bindPopup(popupContent);
-            
-            // Event listeners
-            marker.on('click', function() {
-                bridge.on_antenna_marker_clicked(antenna_id);
-            });
-            
-            marker.on('dragend', function(e) {
-                const new_lat = e.target.getLatLng().lat;
-                const new_lon = e.target.getLatLng().lng;
-                bridge.on_antenna_marker_moved(antenna_id, new_lat, new_lon);
-            });
-            
-            marker.addTo(map);
-            antennaMarkers[antenna_id] = marker;
-            
-            console.log(`Antenna marker added: ${antenna_id}`);
-        }
-        
-        function removeAntennaMarker(antenna_id) {
-            if (antennaMarkers[antenna_id]) {
-                map.removeLayer(antennaMarkers[antenna_id]);
-                delete antennaMarkers[antenna_id];
-                console.log(`Antenna marker removed: ${antenna_id}`);
-            }
-        }
-        
-        // ─────────────────────────────────────
-        // FUNCIONES DE COBERTURA
-        // ─────────────────────────────────────
-        
-        function addCoverageLayer(antenna_id, image_data_url, lat_min, lon_min, lat_max, lon_max) {
-            if (coverageLayers[antenna_id]) {
-                removeCoverageLayer(antenna_id);
-            }
-            
-            const bounds = [[lat_min, lon_min], [lat_max, lon_max]];
-            
-            const overlay = L.imageOverlay(
-                image_data_url,
-                bounds,
-                {
-                    opacity: 0.6,
-                    className: 'coverage-layer',
-                    zIndex: 100
-                }
-            );
-            
-            overlay.addTo(map);
-            coverageLayers[antenna_id] = overlay;
-            
-            console.log(`Coverage layer added: ${antenna_id}`);
-        }
-        
-        function removeCoverageLayer(antenna_id) {
-            if (coverageLayers[antenna_id]) {
-                map.removeLayer(coverageLayers[antenna_id]);
-                delete coverageLayers[antenna_id];
-                console.log(`Coverage layer removed: ${antenna_id}`);
-            }
-        }
-        
-        function getLegendHTML(vmin, mid, vmax) {
-            return '<div class="leg-title">RSRP [dBm]</div>'
-                 + '<div class="leg-wrap">'
-                 +   '<div class="leg-bar"></div>'
-                 +   '<div class="leg-labels">'
-                 +     '<span>' + vmax + '</span>'
-                 +     '<span>' + mid  + '</span>'
-                 +     '<span>' + vmin + '</span>'
-                 +   '</div>'
-                 + '</div>';
-        }
-        
-        function updateCoverageLegend(vmin, vmax) {
-            const mid = Math.round((vmin + vmax) / 2);
-            const html = getLegendHTML(Math.round(vmin), mid, Math.round(vmax));
-            if (!legendControl) {
-                legendControl = L.control({ position: 'bottomright' });
-                legendControl.onAdd = function() {
-                    const div = L.DomUtil.create('div', '');
-                    div.id = 'coverage-legend';
-                    return div;
-                };
-                legendControl.addTo(map);
-            }
-            const el = document.getElementById('coverage-legend');
-            if (el) { el.innerHTML = html; el.style.display = 'block'; }
-        }
-        // ─────────────────────────────────────
-        
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            bridge = channel.objects.bridge;
-            
-            // Conectar signals Python → JavaScript
-            bridge.add_antenna_marker.connect(function(id, lat, lon, name, color) {
-                addAntennaMarker(id, lat, lon, name, color);
-            });
-            
-            bridge.remove_antenna_marker.connect(function(id) {
-                removeAntennaMarker(id);
-            });
-            
-            bridge.add_coverage_layer.connect(function(id, img, lat_min, lon_min, lat_max, lon_max) {
-                addCoverageLayer(id, img, lat_min, lon_min, lat_max, lon_max);
-            });
-            
-            bridge.remove_coverage_layer.connect(function(id) {
-                removeCoverageLayer(id);
-            });
-            
-            bridge.update_coverage_legend.connect(function(vmin, vmax) {
-                updateCoverageLegend(vmin, vmax);
-            });
-
-            bridge.add_los_layer.connect(function(id, img, lat_min, lon_min, lat_max, lon_max) {
-                addLOSLayer(id, img, lat_min, lon_min, lat_max, lon_max);
-            });
-
-            bridge.register_layer_name.connect(function(id, name) {
-                setLayerName(id, name);
-            });
-
-            bridge.add_hidden_coverage_layer.connect(function(id, img, lat_min, lon_min, lat_max, lon_max) {
-                addHiddenCoverageLayer(id, img, lat_min, lon_min, lat_max, lon_max);
-            });
-
-            bridge.store_rsrp_range.connect(function(id, vmin, vmax) {
-                storeRsrpRange(id, vmin, vmax);
-            });
-            });
-            
-            bridge.set_map_mode.connect(function(mode) {
-                currentMode = mode;
-                console.log(`Map mode changed to: ${mode}`);
-            });
-            
-            bridge.center_map.connect(function(lat, lon, zoom) {
-                map.setView([lat, lon], zoom);
-            });
-            
-            // Inicializar mapa
-            initMap();
-            console.log('Map initialized');
-        });
-    </script>
-</body>
-</html>
-```
-
-## 4. Flujo de Eventos Completo: Usuario Coloca Antena
-
-### 4.1 Diagrama de Secuencia
-
-```mermaid
-sequenceDiagram
-    participant User as Usuario
-    participant JS as JavaScript
-    participant Bridge as Qt Bridge
-    participant Py as Python (MainWindow)
-    
-    User->>JS: 1. Click en mapa<br/>(modo add_antenna)
-    JS->>Bridge: 2. handleMapClick()<br/>bridge.on_map_click(lat, lon)
-    
-    Note over Bridge: Qt encoloca slot<br/>en MainThread
-    
-    Bridge->>Py: 3. _on_antenna_placed_on_map(lat, lon)
-    Py->>Py: 4. Create Antenna object
-    Py->>Py: 5. Add to project
-    Py->>Py: 6. Update UI tree
-    
-    Py->>Bridge: 7. map_widget.add_antenna_marker<br/>(id, lat, lon, name, color)
-    
-    Note over Bridge: Signal Python → JS<br/>automático
-    
-    Bridge->>JS: 8. addAntennaMarker()<br/>(via QWebChannel)
-    JS->>JS: 9. L.circleMarker([lat, lon])
-    JS->>JS: 10. marker.addTo(map)
-    JS->>User: 11. Marcador visible en mapa
-```
-
-### 4.2 Código Python: Manejo de Click
-
-**Ubicación**: `src/ui/main_window.py`, líneas 400-450
-
-```python
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        # ... setup UI ...
-        
-        # Conectar signals del mapa
-        self.map_widget.bridge.map_clicked.connect(
-            self._on_map_clicked
-        )
-        self.map_widget.bridge.antenna_marker_moved.connect(
-            self._on_antenna_moved
-        )
-    
-    @pyqtSlot(float, float)
-    def _on_map_clicked(self, lat: float, lon: float):
-        """Usuario hizo click en mapa"""
-        
-        if self.current_mode == 'add_antenna':
-            # Crear nueva antena
-            antenna_id = f"ant-{len(self.project.antennas) + 1:03d}"
-            
-            antenna = Antenna(
-                id=antenna_id,
-                name=f"Antena {antenna_id}",
-                latitude=lat,
-                longitude=lon,
-                height_agl=15.0,
-                frequency_mhz=900,
-                tx_power_dbm=40,
-                azimuth_degrees=0,
-            )
-            
-            # Agregar al proyecto
-            self.project.antennas.append(antenna)
-            
-            # Actualizar árbol de proyecto
-            self._update_project_tree()
-            
-            # Agregar marcador en mapa
-            self.map_widget.bridge.add_antenna_marker.emit(
-                antenna_id,
-                lat,
-                lon,
-                antenna.name,
-                '#FF0000'  # rojo
-            )
-            
-            # Salir de modo add_antenna
-            self.current_mode = 'pan'
-            self.map_widget.bridge.set_map_mode.emit('pan')
-            
-            self.logger.info(f"Antenna {antenna_id} placed at ({lat}, {lon})")
-```
-
-## 5. Conexión con Motor de Cálculo
-
-### 5.1 Mostrar Resultados de Simulación
-
-**Ubicación**: `src/ui/main_window.py`, líneas 550-620
-
-```python
-    @pyqtSlot(dict)
-    def _on_simulation_finished(self, results):
-        """
-        Simulación completada: mostrar resultados en mapa
-        
-        results = {
-            'individual': {
-                'ant-001': {..., 'image_url': '...', 'bounds': [...]}
-            },
-            'aggregated': {..., 'image_url': '...', 'bounds': [...]}
-        }
-        """
-        
-        self.logger.info("Simulation completed, updating visualization")
-        
-        # Mostrar cobertura individual de cada antena
-        for ant_id, coverage_data in results['individual'].items():
-            image_url = coverage_data['image_url']     # data:image/png;base64,...
-            bounds = coverage_data['bounds']            # [[lat_min, lon_min], [lat_max, lon_max]]
-            
-            self.map_widget.bridge.add_coverage_layer.emit(
-                antenna_id=ant_id,
-                image_data_url=image_url,
-                lat_min=bounds[0][0],
-                lon_min=bounds[0][1],
-                lat_max=bounds[1][0],
-                lon_max=bounds[1][1]
-            )
-        
-        # Mostrar cobertura agregada
-        if 'aggregated' in results:
-            agg = results['aggregated']
-            agg_image = agg['image_url']
-            agg_bounds = agg['bounds']
-            
-            self.map_widget.bridge.add_coverage_layer.emit(
-                antenna_id='aggregated',
-                image_data_url=agg_image,
-                lat_min=agg_bounds[0][0],
-                lon_min=agg_bounds[0][1],
-                lat_max=agg_bounds[1][0],
-                lon_max=agg_bounds[1][1]
-            )
-        
-        # Actualizar información en UI
-        if 'metadata' in results:
-            metadata = results['metadata']
-            self.status_label.setText(
-                f"Simulación: {metadata['num_antennas']} antenas, "
-                f"{metadata['gpu_device']}, "
-                f"Tiempo: {metadata['total_execution_time_seconds']:.2f}s"
-            )
-```
-
-### 5.2 Cajas de Entradas y Salidas
-
-```
-┌─────────────────────────────────────────────┐
-│ SimulationWorker.finished(dict results)     │
-├─────────────────────────────────────────────┤
-│ {                                           │
-│   'individual': {                           │
-│     'ant-001': {'image_url', 'bounds',      │
-│       'rsrp_vmin', 'rsrp_vmax',             │
-│       'los_map', 'los_image_url', ...}      │
-│   },                                        │
-│   'aggregated': {'image_url', 'bounds',     │
-│     'rsrp_vmin', 'rsrp_vmax',               │
-│     'los_map', 'los_image_url', ...}        │
-│ }                                           │
-└─────────────────────────────────────────────┘
-             │
-             ↓ Signal Python
-        ┌────────────────────┐
-        │ MainWindow._on_    │
-        │ simulation_finished│
-        └────────────────────┘
-             │
-             ↓
-        ┌────────────────────┐
-        │ map_widget.bridge. │
-        │ add_coverage_layer │
-        │ .emit()            │
-        └────────────────────┘
-             │
-             ↓ Qt Bridge JSON
-        ┌────────────────────────────────┐
-        │ JavaScript                     │
-        │ addCoverageLayer(              │
-        │   antenna_id,                  │
-        │   image_data_url (base64),     │
-        │   bounds                       │
-        │ )                              │
-        └────────────────────────────────┘
-             │
-             ↓
-        ┌────────────────────────────────┐
-        │ L.imageOverlay()               │
-        │ (Leaflet)                      │
-        └────────────────────────────────┘
-             │
-             ↓
-        ┌────────────────────────────────┐
-        │ Usuario ve:                    │
-        │ - Mapa con capas de cobertura  │
-        │ - Heatmaps sobrepuestos        │
-        │ - Marcadores de antenas        │
-        └────────────────────────────────┘
-```
-
-## 6. Modos de Mapa
-
-```python
-# Ubicación: src/ui/main_window.py
-
-self.map_modes = {
-    'pan': {
-        'description': 'Navegar mapa',
-        'cursor': 'grab',
-        'js_mode': 'pan'
-    },
-    'add_antenna': {
-        'description': 'Click para agregar antena',
-        'cursor': 'crosshair',
-        'js_mode': 'add_antenna'
-    },
-    'move_antenna': {
-        'description': 'Arrastrar para mover antena',
-        'cursor': 'move',
-        'js_mode': 'move_antenna'
-    },
-}
-
-def set_map_mode(self, mode: str):
-    """Cambiar modo del mapa"""
-    if mode in self.map_modes:
-        self.current_mode = mode
-        self.map_widget.bridge.set_map_mode.emit(mode)
-        self.logger.info(f"Map mode: {self.map_modes[mode]['description']}")
-```
-
-## 7. Componentes Adicionales de UI
-
-### 7.1 Panel de Proyecto
-
-**Ubicación**: `src/ui/panels/project_panel.py`
-
-Árbol de proyecto con estructura:
-```
-Proyecto: Mi Proyecto
-├─ Antenas (3)
-│  ├─ Sitio Principal
-│  │  ├─ Frecuencia: 900 MHz
-│  │  ├─ Potencia: 40 dBm
-│  │  └─ Azimuth: 45°
-│  ├─ Sitio Secundario
-│  └─ Sitio Terciario
-├─ Terreno
-│  └─ DEM: cuenca_terrain.tif
-└─ Configuración
-   ├─ Modelo: Okumura-Hata
-   └─ Radio: 5 km
-```
-
-### 7.2 Diálogos
-
-- **SimulationDialog**: Parámetros de simulación (modelo, radio, resolución)
-- **AntennaPropertiesDialog**: Configurar antena (frecuencia, potencia, altura)
-- **SettingsDialog**: Configuración global (terreno, GPU, etc.)
-
-## 8. Thread-Safety en UI
-
-**Garantía de Qt**:
-- ✅ Signals entre threads son thread-safe (automático)
-- ✅ Solo MainThread puede modificar widgets
-- ✅ Workers emiten signals, MainThread conecta slots
-
-Ejemplo (correcto):
-```python
-# En WorkerThread
-self.progress.emit(50)  # Signal → encolado en MainThread
-
-# En MainThread
-@pyqtSlot(int)
-def on_progress(self, percent):
-    self.progress_bar.setValue(percent)  # ✅ Seguro (MainThread)
-```
+1. Gestión del proyecto y su estado en memoria.
+2. Edición de antenas y sitios desde paneles y diálogos.
+3. Lanzamiento de simulaciones sin bloquear la ventana principal.
+4. Presentación de resultados RF y LOS sobre el mapa interactivo.
 
 ---
 
-**Ver también**: [10_MODELO_EJECUCION_THREADS.md](10_MODELO_EJECUCION_THREADS.md), [09_PIPELINE_SIMULACION_FLUJO.md](09_PIPELINE_SIMULACION_FLUJO.md)
+## 2. Componentes principales
+
+La interfaz se organiza alrededor de `MainWindow`, que compone el resto de widgets y conecta sus señales con los managers del dominio y el worker de simulación.
+
+```
+MainWindow
+├─ MapWidget
+│  ├─ QWebEngineView
+│  ├─ MapBridge
+│  └─ HTML/JavaScript Leaflet embebido
+├─ ProjectPanel
+├─ SimulationDialog
+├─ AntennaPropertiesDialog
+└─ SitePropertiesDialog
+```
+
+### 2.1 MainWindow
+
+`MainWindow` es el orquestador de la GUI. Inicializa `ComputeEngine`, `AntennaManager`, `SiteManager`, `ProjectManager` y `CoverageCalculator`, crea la disposición general de la ventana, administra toolbars, menús, status bar y acopla el panel de proyecto al costado izquierdo.
+
+También mantiene el estado operativo de la sesión actual:
+
+- proyecto cargado o recién creado,
+- terreno activo,
+- modo de cómputo CPU/GPU,
+- simulación en curso,
+- últimos resultados disponibles para exportación.
+
+Desde el punto de vista de diseño, `MainWindow` no implementa los modelos RF ni la lógica geoespacial. Su papel es coordinar eventos y mover datos entre UI, managers, worker y mapa.
+
+### 2.2 MapWidget
+
+`MapWidget` encapsula el mapa interactivo. Internamente usa `QWebEngineView` para renderizar una página HTML generada desde Python y `QWebChannel` para exponer un objeto `MapBridge` que actúa como interfaz entre ambos lados.
+
+Este widget ofrece métodos públicos de más alto nivel, como:
+
+- `set_mode()`
+- `add_antenna()`
+- `remove_antenna()`
+- `update_antenna()`
+- `show_coverage()`
+- `clear_all_antennas()`
+- `clear_coverage_layers()`
+- `center_on_location()`
+- `get_center()`
+
+Es decir, la ventana principal no manipula directamente JavaScript ni objetos Leaflet. Lo hace mediante un widget Python que encapsula ese detalle.
+
+### 2.3 ProjectPanel
+
+`ProjectPanel` muestra la estructura del proyecto en forma de árbol. La versión actual ya no trabaja solo con una lista plana de antenas. Organiza el contenido en dos grupos:
+
+- sitios, con sus antenas asociadas como nodos hijos,
+- antenas independientes que no pertenecen a ningún sitio.
+
+Además ofrece acciones contextuales como selección, apertura de propiedades, duplicación de antenas y eliminación de sitios o antenas. Esto vuelve más coherente el modelo visual del proyecto con el modelo de datos real que ya maneja entidades `Site` y relaciones `Site ↔ Antenna`.
+
+### 2.4 Diálogos de edición y simulación
+
+La edición detallada se distribuye en diálogos especializados:
+
+- `AntennaPropertiesDialog` organiza parámetros generales, RF y patrón de radiación por pestañas.
+- `SitePropertiesDialog` permite editar identificación, ubicación, características físicas, metadatos y asociación de antenas a un sitio.
+- `SimulationDialog` concentra la configuración de la corrida: modelo de propagación, parámetros específicos por modelo, radio, resolución, override de frecuencia y estado del terreno cargado.
+
+---
+
+## 3. Tecnología del mapa y comunicación Python–JavaScript
+
+La visualización cartográfica se implementa con Leaflet dentro de una página HTML embebida. El HTML se genera desde `_load_map_html()` en `MapWidget`, y luego se carga con `setHtml()` en el `QWebEngineView`.
+
+La comunicación entre Python y JavaScript se realiza con `QWebChannel`, que registra un objeto `MapBridge`. Ese puente expone señales de Python hacia JavaScript y slots invocables desde el lado web hacia Python.
+
+### 3.1 Señales Python → JavaScript
+
+El puente emite comandos para:
+
+- agregar, quitar y actualizar marcadores de antena,
+- agregar capas RSRP visibles u ocultas,
+- agregar capas LOS,
+- registrar nombres legibles para overlays,
+- almacenar rangos RSRP para la leyenda dinámica,
+- cambiar modo del mapa,
+- centrar el mapa,
+- limpiar marcadores y capas,
+- solicitar el centro actual de la vista.
+
+Esto muestra que el puente no está limitado a “dibujar antenas”. También administra overlays, leyendas y sincronización de estado entre la interfaz Qt y el mapa Leaflet.
+
+### 3.2 Eventos JavaScript → Python
+
+Desde el mapa regresan al lado Python tres clases de eventos principales:
+
+- clic sobre el mapa,
+- movimiento de un marcador de antena,
+- selección de un marcador,
+- actualización del centro y zoom de la vista.
+
+En el código actual estos eventos se reciben mediante slots como `on_map_click`, `on_antenna_moved`, `on_antenna_selected` y `on_map_center`, y luego se reemiten como señales Qt normales dentro de `MapWidget`.
+
+Esta capa intermedia simplifica la arquitectura porque `MainWindow` se conecta al widget Python, no directamente a callbacks JavaScript.
+
+---
+
+## 4. Modo de interacción en el mapa
+
+El mapa no funciona solo como visor pasivo. Implementa varios modos de interacción definidos en `MapMode`:
+
+- `PAN`
+- `ADD_ANTENNA`
+- `MOVE_ANTENNA`
+- `SELECT`
+- `MEASURE`
+
+En la lógica JavaScript embebida, los modos que tienen comportamiento explícito hoy son sobre todo `pan`, `add_antenna` y `move_antenna`. Cuando el usuario activa el modo de agregar antena desde toolbar o menú, `MainWindow` llama a `map_widget.set_mode(MapMode.ADD_ANTENNA)` y actualiza la barra de estado. El siguiente clic sobre el mapa genera la señal `antenna_placed(lat, lon)`.
+
+Luego `MainWindow.on_antenna_placed()` crea la antena mediante `AntennaManager.create_antenna_at_location()`, la recupera desde el manager y la dibuja en el mapa con `map_widget.add_antenna(...)`. Después el widget vuelve automáticamente a modo `PAN`.
+
+Eso significa que la creación interactiva de antenas se resuelve con un flujo de dos etapas:
+
+1. La UI activa un modo de captura espacial.
+2. El clic geográfico se transforma en una nueva entidad del dominio.
+
+---
+
+## 5. Gestión visual del proyecto: antenas, sitios y persistencia
+
+Una de las diferencias más importantes respecto a versiones anteriores es la integración explícita entre antenas, sitios y persistencia del proyecto.
+
+### 5.1 Sitios y antenas asociadas
+
+`ProjectPanel.refresh()` construye el árbol con un nodo raíz de sitios y otro para antenas independientes. Cada sitio contiene como hijos las antenas cuyos IDs aparecen en `site.antenna_ids`. Esto no es solo una decisión visual: refleja el modelo actual de negocio, donde una antena puede estar asociada a un sitio o quedar libre.
+
+Cuando el usuario crea o edita un sitio mediante `SitePropertiesDialog`, la interfaz permite marcar qué antenas pertenecen a ese sitio. Al confirmar el diálogo, el panel y `SiteManager` actualizan la relación bidireccional entre `Site.antenna_ids` y `antenna.site_id`.
+
+### 5.2 Persistencia del proyecto
+
+`ProjectManager` guarda y carga proyectos `.rfproj` en formato JSON. En la versión actual no se persisten solo antenas y nombre del proyecto. También se almacenan:
+
+- sitios,
+- centro y zoom del mapa,
+- archivo de terreno asociado,
+- configuración de simulación.
+
+Antes de guardar, `MainWindow._update_project_before_save()` actualiza la estructura `Project` con el contenido real de `AntennaManager`, `SiteManager` y la vista actual del mapa. De esta manera, al reabrir el proyecto no solo se recupera el inventario de entidades, sino también el contexto espacial de trabajo.
+
+---
+
+## 6. Configuración de la simulación desde la GUI
+
+La simulación se inicia desde `MainWindow.run_simulation()`. Antes de lanzar el worker, la aplicación abre `SimulationDialog`, que funciona como interfaz de configuración técnica de la corrida.
+
+Este diálogo ya incorpora una cantidad considerable de lógica integrada al sistema:
+
+- selección del modelo de propagación,
+- grupos de parámetros específicos para Okumura-Hata, COST-231 Walfisch-Ikegami, COST-231 Hata, ITU-R P.1546 y 3GPP TR 38.901,
+- radio y resolución del área de simulación,
+- override opcional de frecuencia,
+- verificación de si existe DEM cargado y presentación de estadísticas básicas del terreno.
+
+La relevancia de esto en la tesis es que la GUI no se limita a pedir “un modelo” y “un radio”. La interfaz ya incorpora conocimiento del dominio RF, porque adapta la configuración visible al modelo elegido y transmite esa estructura al worker mediante `dialog.get_config()`.
+
+---
+
+## 7. Ejecución asíncrona y respuesta de la interfaz
+
+Para no bloquear la ventana principal, `MainWindow` ejecuta la simulación en un `QThread` separado y mueve ahí un `SimulationWorker`. El patrón es el típico de Qt: el hilo principal conserva la UI y el worker emite señales de progreso, estado, finalización o error.
+
+El flujo real es:
+
+1. `MainWindow` crea `QThread` y `SimulationWorker`.
+2. Mueve el worker al hilo secundario.
+3. Conecta `progress`, `status_message`, `finished` y `error`.
+4. Inicia el hilo.
+5. La UI actualiza barra de progreso y mensajes sin bloquearse.
+
+Este diseño tiene una consecuencia importante en términos de experiencia de usuario: la aplicación puede seguir respondiendo mientras el núcleo RF calcula distancias, pérdidas, capas RSRP y mapas LOS.
+
+---
+
+## 8. Presentación de resultados en el mapa
+
+Cuando `SimulationWorker` termina, `MainWindow.on_simulation_finished()` recibe un diccionario `results` y lo conserva para exportaciones posteriores. Luego actualiza el mapa mediante `MapWidget.show_coverage()`.
+
+Aquí la integración es más rica de lo que parece a primera vista.
+
+### 8.1 Capas individuales y capa agregada
+
+La interfaz registra primero las coberturas individuales de cada antena como capas disponibles pero ocultas al inicio. Después muestra por defecto la capa agregada, si existe. Si no hay agregada, utiliza la primera individual como fallback visible.
+
+Este comportamiento tiene sentido operativo: en despliegues multiantena, el usuario ve de entrada la cobertura global, pero puede activar o desactivar capas individuales desde el control de overlays de Leaflet.
+
+### 8.2 Leyenda dinámica y overlays LOS
+
+Cada capa RSRP guarda su rango `vmin/vmax`, que luego se usa para actualizar la leyenda dinámica cuando el usuario activa una capa concreta. Además, si la simulación incluye `los_image_url`, `MapWidget.show_coverage()` registra una capa LOS separada para ese mismo identificador.
+
+En el lado JavaScript esto se materializa en tres estructuras principales:
+
+- `coverageLayers` para overlays RSRP,
+- `losLayers` para overlays de visibilidad,
+- `overlayNames` y `rsrpRanges` para presentar nombres legibles y leyendas consistentes.
+
+El resultado es un panel de capas donde RSRP y LOS no están mezclados en una sola imagen, sino tratados como overlays distintos y activables por el usuario.
+
+### 8.3 Renderizado realmente usado
+
+El heatmap no se genera en Leaflet ni mediante teselas dinámicas. `SimulationWorker` produce imágenes PNG codificadas en base64 usando `HeatmapGenerator`, y `MapWidget` las inserta en el mapa como `L.imageOverlay(...)` georreferenciado con los límites de la grilla. La misma idea se aplica a la capa LOS.
+
+Eso explica por qué la GUI puede combinar un stack de escritorio con una visualización geográfica moderna sin introducir un servidor web intermedio.
+
+---
+
+## 9. Flujo de usuario principal
+
+Desde el punto de vista funcional, el flujo más representativo de la aplicación puede resumirse así:
+
+1. El usuario crea o abre un proyecto.
+2. La GUI restaura el centro del mapa, las antenas, los sitios y el archivo de terreno si existe.
+3. El usuario agrega antenas desde el mapa, edita sus propiedades o las organiza dentro de sitios desde el panel.
+4. Si hace falta, importa un DEM.
+5. Abre `SimulationDialog`, selecciona modelo y parámetros.
+6. Ejecuta la simulación sin bloquear la ventana.
+7. Inspecciona la cobertura agregada y las capas individuales RSRP/LOS en el mapa.
+8. Exporta resultados a CSV, GeoTIFF o KML.
+
+Este flujo es importante porque muestra que la interfaz no está separada del proceso de ingeniería. Toda la aplicación fue pensada como una herramienta operativa donde edición, simulación, visualización y exportación forman parte de una misma sesión de trabajo.
+
+---
+
+## 10. Consideraciones técnicas y limitaciones actuales
+
+La documentación de GUI también debe dejar claras algunas restricciones reales del código actual.
+
+La primera es que el mapa trabaja con HTML embebido generado desde Python. Esto simplifica la distribución de la aplicación, pero hace que una parte importante del comportamiento Leaflet esté escrita como cadena HTML/JavaScript dentro de `MapWidget`, lo que vuelve más difícil su mantenimiento que si estuviera separado en archivos estáticos.
+
+La segunda es que la interfaz visualiza coberturas como imágenes georreferenciadas, no como capas vectoriales ni como raster dinámico progresivo. Esto es suficiente para el caso de uso del sistema, pero condiciona la forma en que se manipulan overlays y leyendas.
+
+La tercera es que no todas las acciones visibles en la UI representan todavía un flujo completo equivalente. Por ejemplo, el camino principal de creación de antenas plenamente integrado es el modo de colocación sobre el mapa, mientras que otras rutas secundarias de creación desde panel todavía no concentran la misma lógica operativa.
+
+La cuarta es que la interfaz depende de un conjunto coordinado de señales entre `MainWindow`, `MapWidget`, `ProjectPanel`, managers y worker. Esa arquitectura mejora modularidad, pero también exige que la documentación permanezca alineada con el código, porque pequeños cambios en nombres de señales o en el flujo de overlays afectan de inmediato el comportamiento observable.
+
+---
+
+## 11. Resumen
+
+La GUI del sistema no debe entenderse solo como una capa estética. En la implementación actual funciona como un subsistema de integración entre el dominio RF, la cartografía interactiva y el ciclo de vida completo del proyecto. `MainWindow` coordina managers y simulación; `ProjectPanel` representa la estructura lógica de sitios y antenas; `SimulationDialog` traduce parámetros del dominio a configuración ejecutable; y `MapWidget` convierte los resultados numéricos en overlays cartográficos interactivos sobre Leaflet.
+
+Por eso, al redactar la tesis, la interfaz conviene presentarla como una decisión de arquitectura que vuelve operable el simulador: permite editar entidades espaciales, lanzar simulaciones sin bloqueo, visualizar resultados multi-capa y conservar el estado del proyecto en un formato persistente. Esa es, en la práctica, la capa que transforma un conjunto de modelos y algoritmos en una herramienta usable.
