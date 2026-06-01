@@ -265,14 +265,20 @@ class SimulationWorker(QObject):
                 self.status_message.emit("Calculando cobertura agregada...")
                 self.logger.info("Computing aggregated coverage for multi-antenna deployment")
 
-                # Llamar método de agregación que ya existe
+                # Pasar los RSRP ya calculados correctamente (con terrain_loader, tx_elevation real
+                # y model_params por antena) para que el método solo agregue sin recalcular.
+                precomputed_rsrp = {
+                    ant_id: results['individual'][ant_id]['rsrp']
+                    for ant_id in results['individual']
+                }
                 aggregated_results = self.calculator.calculate_multi_antenna_coverage(
                     antennas=self.antennas,
                     grid_lats=grid_lats,
                     grid_lons=grid_lons,
                     terrain_heights=terrain_heights,
                     model=model,
-                    model_params=model_params
+                    model_params=model_params,
+                    precomputed_rsrp=precomputed_rsrp
                 )
 
                 # Generar heatmap agregado con rango dinámico
@@ -425,8 +431,11 @@ class SimulationWorker(QObject):
         
         grid_lats = np.linspace(min_lat, max_lat, resolution)
         grid_lons = np.linspace(min_lon, max_lon, resolution)
-        
-        grid_lats, grid_lons = np.meshgrid(grid_lats, grid_lons)
+
+        # indexing='ij': grid_lats[i,j] varía con i (filas=N-S), grid_lons[i,j] varía con j (cols=E-O)
+        # Es la convención que espera _calculate_azimuths. Sin 'ij' los ejes quedan intercambiados
+        # y el patrón de antena aparece rotado respecto al azimuth configurado.
+        grid_lats, grid_lons = np.meshgrid(grid_lats, grid_lons, indexing='ij')
 
         # Cargar alturas de terreno
         if self.terrain_loader and self.terrain_loader.is_loaded():

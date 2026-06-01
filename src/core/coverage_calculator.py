@@ -166,10 +166,11 @@ class CoverageCalculator:
         grid_lons: np.ndarray,
         terrain_heights: np.ndarray,
         model,
-        model_params: dict = None
+        model_params: dict = None,
+        precomputed_rsrp: Dict[str, np.ndarray] = None
     ) -> Dict[str, np.ndarray]:
         """
-        Calcula cobertura para múltiples antenas
+        Calcula cobertura para múltiples antenas y determina el best server por píxel.
 
         Args:
             antennas: Lista de antenas
@@ -178,51 +179,50 @@ class CoverageCalculator:
             terrain_heights: Array 2D con elevaciones del terreno
             model: Modelo de propagación
             model_params: Parámetros adicionales para el modelo
+            precomputed_rsrp: Dict opcional {antenna_id -> rsrp_array_2D} con los arrays
+                de RSRP ya calculados (e.g. por el SimulationWorker con terrain_loader y
+                parámetros correctos por antena). Si se proporciona, se omite el recálculo
+                interno y se agregan directamente estos arrays. Esto garantiza que el
+                heatmap agregado sea el máximo pixel a pixel de los individuales correctos.
 
         Returns:
             Dict con:
             - 'best_server': ID de antena con mejor señal en cada punto
             - 'rsrp': RSRP de la mejor antena en cada punto
-            - 'individual': Dict con cobertura de cada antena
+            - 'individual': Dict con cobertura de cada antena (rsrp arrays)
         """
-        self.logger.info(f"Calculating coverage for {len(antennas)} antennas")
+        self.logger.info(f"Aggregating coverage for {len(antennas)} antennas "
+                         f"({'precomputed' if precomputed_rsrp is not None else 'recalculating'})")
 
         results = {'individual': {}}
 
-        # Calcular cobertura individual
-        for antenna in antennas:
-            if antenna.enabled and antenna.show_coverage:
-                coverage = self.calculate_single_antenna_coverage(
-                    antenna, grid_lats, grid_lons, terrain_heights, model, model_params
-                )
-                results['individual'][antenna.id] = coverage
+        if precomputed_rsrp is not None:
+            # Usar los arrays ya calculados correctamente (con terrain_loader, tx_elevation real, etc.)
+            # Se filtra por antenas habilitadas y con coverage activo, igual que la rama de recálculo.
+            for antenna in antennas:
+                if antenna.enabled and antenna.show_coverage and antenna.id in precomputed_rsrp:
+                    results['individual'][antenna.id] = precomputed_rsrp[antenna.id]
+        else:
+            # Calcular cobertura individual desde cero (modo standalone / tests)
+            for antenna in antennas:
+                if antenna.enabled and antenna.show_coverage:
+                    coverage = self.calculate_single_antenna_coverage(
+                        antenna, grid_lats, grid_lons, terrain_heights, model, model_params
+                    )
+                    results['individual'][antenna.id] = coverage
 
         # Calcular best server (máximo RSRP en cada píxel)
         if results['individual']:
-            coverage_stack = self.xp.stack(list(results['individual'].values()))  # CAMBIO: np.stack -> self.xp.stack
+            coverage_stack = np.stack(list(results['individual'].values()))
             antenna_ids = list(results['individual'].keys())
 
-            best_indices = self.xp.argmax(coverage_stack, axis=0)  # CAMBIO: np.argmax -> self.xp.argmax
-            results['rsrp'] = self.xp.max(coverage_stack, axis=0)  # CAMBIO: np.max -> self.xp.max
+            best_indices = np.argmax(coverage_stack, axis=0)
+            results['rsrp'] = np.max(coverage_stack, axis=0)
 
-            # Crear mapa de best server (siempre NumPy, dtype=object no soportado en GPU)
-            if self.engine.use_gpu:
-                best_indices_numpy = self.xp.asnumpy(best_indices)
-            else:
-                best_indices_numpy = best_indices
-                
-            results['best_server'] = np.empty(best_indices_numpy.shape, dtype=object)
+            results['best_server'] = np.empty(best_indices.shape, dtype=object)
             for i, ant_id in enumerate(antenna_ids):
-                mask = best_indices_numpy == i
+                mask = best_indices == i
                 results['best_server'][mask] = ant_id
-        
-        # OPTIMIZACION: Convertir a CPU solo aquí, antes del return (una sola vez)
-        if self.engine.use_gpu:
-            if results['individual']:
-                results['rsrp'] = self.xp.asnumpy(results['rsrp'])
-                # best_server ya es NumPy (creado así porque dtype=object no se soporta en GPU)
-            for antenna_id in results['individual'].keys():
-                results['individual'][antenna_id] = self.xp.asnumpy(results['individual'][antenna_id])
 
         return results
     
