@@ -118,6 +118,7 @@ class SimulationWorker(QObject):
                 base_model_params['street_orientation'] = self.config.get('street_orientation', 0.0)
 
             elif self.config.get('model') == 'cost231_hata':
+                base_model_params['environment'] = self.config.get('environment', 'Urban')
                 base_model_params['city_type'] = self.config.get('city_type', 'medium')
                 base_model_params['mobile_height'] = self.config.get('mobile_height', 1.5)
 

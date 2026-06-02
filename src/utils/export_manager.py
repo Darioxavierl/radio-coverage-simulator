@@ -17,7 +17,11 @@ class ExportManager:
 
     def export_csv(self, results, base_filename):
         """
-        Exporta resultados como CSV completo para comparativa científica
+        Exporta resultados como CSV completo para comparativa científica.
+
+        Para despliegues multi-antena: exporta UNA fila por punto de grid usando el
+        RSRP del best server (antena dominante), equivalente al export de Atoll.
+        Para despliegues mono-antena: exporta las filas de esa única antena.
 
         Args:
             results: Dict con structure {'individual': {...}, 'aggregated': {...}, 'metadata': {...}}
@@ -25,11 +29,16 @@ class ExportManager:
         """
         csv_file = f"{base_filename}.csv"
 
+        # El aggregated con 'best_server' solo existe en despliegues multi-antena.
+        # Para mono-antena, results['aggregated'] es una copia del individual y no
+        # contiene 'best_server'.
+        agg = results.get('aggregated')
+        use_aggregated = agg is not None and 'best_server' in agg
+
         try:
             with open(csv_file, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
 
-                # Header con todos los datos necesarios para comparativa
                 header = [
                     'antenna_id', 'frequency_mhz', 'tx_power_dbm', 'tx_height_m',
                     'grid_lat', 'grid_lon',
@@ -37,43 +46,50 @@ class ExportManager:
                     'model_used', 'environment', 'terrain_type'
                 ]
 
-                # Detectar si algún resultado incluye mapa LOS
-                has_los = any(
-                    cov.get('los_map') is not None
-                    for cov in results['individual'].values()
-                )
+                if use_aggregated:
+                    has_los = agg.get('los_map') is not None
+                else:
+                    has_los = any(
+                        cov.get('los_map') is not None
+                        for cov in results['individual'].values()
+                    )
+
                 if has_los:
                     header.append('los_nlos')
 
                 writer.writerow(header)
 
-                # Obtener metadata
                 metadata = results.get('metadata', {})
                 model_params = metadata.get('model_parameters', {})
 
-                for antenna_id, coverage in results['individual'].items():
-                    antenna_info = coverage.get('antenna', {})
-                    lats = coverage['lats'].flatten()
-                    lons = coverage['lons'].flatten()
-                    rsrp = coverage['rsrp'].flatten()
-                    path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
-                    antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+                if use_aggregated:
+                    # ── Multi-antena: una fila por punto, RSRP del best server ──
+                    # Lookup antenna_id → info (frecuencia, potencia, altura)
+                    antenna_info_lookup = {
+                        ant_id: cov.get('antenna', {})
+                        for ant_id, cov in results['individual'].items()
+                    }
 
-                    # Preparar valores LOS por punto
-                    los_map = coverage.get('los_map')
-                    if has_los and los_map is not None:
-                        los_iter = [int(round(float(v))) for v in los_map.flatten()]
-                    else:
-                        los_iter = [''] * len(lats)
+                    lats = agg['lats'].flatten()
+                    lons = agg['lons'].flatten()
+                    rsrp = agg['rsrp'].flatten()
+                    path_loss = agg.get('path_loss', np.zeros_like(rsrp)).flatten()
+                    antenna_gain = agg.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+                    best_server = agg['best_server'].flatten()
 
-                    for lat, lon, r, pl, ag, los_val in zip(
-                        lats, lons, rsrp, path_loss, antenna_gain, los_iter
+                    los_flat = None
+                    if has_los and agg.get('los_map') is not None:
+                        los_flat = agg['los_map'].flatten()
+
+                    for i, (lat, lon, r, pl, ag, ant_id) in enumerate(
+                        zip(lats, lons, rsrp, path_loss, antenna_gain, best_server)
                     ):
+                        ant_info = antenna_info_lookup.get(ant_id, {})
                         row = [
-                            antenna_id,
-                            antenna_info.get('frequency_mhz', ''),
-                            antenna_info.get('tx_power_dbm', ''),
-                            antenna_info.get('tx_height_m', ''),
+                            ant_id,
+                            ant_info.get('frequency_mhz', ''),
+                            ant_info.get('tx_power_dbm', ''),
+                            ant_info.get('tx_height_m', ''),
                             round(float(lat), 6),
                             round(float(lon), 6),
                             round(float(r), 2),
@@ -84,10 +100,50 @@ class ExportManager:
                             model_params.get('terrain_type', 'N/A')
                         ]
                         if has_los:
-                            row.append(los_val)
+                            row.append(int(round(float(los_flat[i]))) if los_flat is not None else '')
                         writer.writerow(row)
 
-            self.logger.info(f"CSV exported: {csv_file}")
+                    self.logger.info(f"CSV (aggregated best-server): {len(lats)} puntos, {csv_file}")
+
+                else:
+                    # ── Mono-antena: comportamiento original ──
+                    for antenna_id, coverage in results['individual'].items():
+                        antenna_info = coverage.get('antenna', {})
+                        lats = coverage['lats'].flatten()
+                        lons = coverage['lons'].flatten()
+                        rsrp = coverage['rsrp'].flatten()
+                        path_loss = coverage.get('path_loss', np.zeros_like(rsrp)).flatten()
+                        antenna_gain = coverage.get('antenna_gain', np.zeros_like(rsrp)).flatten()
+
+                        los_map = coverage.get('los_map')
+                        if has_los and los_map is not None:
+                            los_iter = [int(round(float(v))) for v in los_map.flatten()]
+                        else:
+                            los_iter = [''] * len(lats)
+
+                        for lat, lon, r, pl, ag, los_val in zip(
+                            lats, lons, rsrp, path_loss, antenna_gain, los_iter
+                        ):
+                            row = [
+                                antenna_id,
+                                antenna_info.get('frequency_mhz', ''),
+                                antenna_info.get('tx_power_dbm', ''),
+                                antenna_info.get('tx_height_m', ''),
+                                round(float(lat), 6),
+                                round(float(lon), 6),
+                                round(float(r), 2),
+                                round(float(pl), 2),
+                                round(float(ag), 2),
+                                metadata.get('model_used', 'unknown'),
+                                model_params.get('environment', 'N/A'),
+                                model_params.get('terrain_type', 'N/A')
+                            ]
+                            if has_los:
+                                row.append(los_val)
+                            writer.writerow(row)
+
+                    self.logger.info(f"CSV (individual): {csv_file}")
+
             return csv_file
 
         except Exception as e:

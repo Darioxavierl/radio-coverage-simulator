@@ -158,6 +158,14 @@ class SimulationDialog(QDialog):
         self.cost231_hata_params_group = QGroupBox("Parámetros de COST-231 Hata (4G LTE)")
         cost231_hata_layout = QFormLayout()
 
+        # Ambiente (Urban/Suburban/Rural)
+        self.cost231_hata_environment_combo = QComboBox()
+        self.cost231_hata_environment_combo.addItem("Urbano (Urban)", "Urban")
+        self.cost231_hata_environment_combo.addItem("Suburbano (Suburban)", "Suburban")
+        self.cost231_hata_environment_combo.addItem("Rural (Open Area)", "Rural")
+        self.cost231_hata_environment_combo.setCurrentIndex(0)
+        cost231_hata_layout.addRow("Ambiente:", self.cost231_hata_environment_combo)
+
         # Tipo de ciudad
         self.cost231_hata_city_type_combo = QComboBox()
         self.cost231_hata_city_type_combo.addItem("Mediana (Medium)", "medium")
@@ -419,6 +427,7 @@ class SimulationDialog(QDialog):
 
         # Agregar parámetros de COST-231 Hata si está seleccionado
         if self.model_combo.currentData() == 'cost231_hata':
+            config['environment'] = self.cost231_hata_environment_combo.currentData()
             config['city_type'] = self.cost231_hata_city_type_combo.currentData()
             config['mobile_height'] = self.cost231_hata_mobile_height_spin.value()
 

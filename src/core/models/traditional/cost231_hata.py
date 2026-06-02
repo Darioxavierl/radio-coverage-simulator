@@ -202,6 +202,27 @@ class COST231HataModel:
 
         path_loss = path_loss_base + Cm
 
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # CORRECCIONES POR TIPO DE AMBIENTE
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if environment.lower() == 'suburban':
+            # Corrección para ambiente suburbano
+            # L_suburban = L_base - 2*[log10(f/28)]^2 - 5.4
+            correction = 2 * (self.xp.log10(frequency / 28.0))**2 + 5.4
+            path_loss = path_loss - correction
+            self.logger.debug("Applied Suburban correction")
+
+        elif environment.lower() == 'rural':
+            # Corrección para área rural abierta (open area)
+            # L_rural = L_base - 4.78*[log10(f)]^2 + 18.33*log10(f) - 40.94
+            f_term = self.xp.log10(frequency)
+            correction = 4.78 * (f_term**2) - 18.33 * f_term + 40.94
+            path_loss = path_loss - correction
+            self.logger.debug("Applied Rural correction")
+
+        else:  # Urban (default)
+            self.logger.debug("Using Urban (standard) model")
+
         self.logger.info(
             f"COST-231 Hata: base={path_loss_base.mean():.1f} dB, "
             f"C_m={Cm} dB, valid={valid_count}/{distances.size}"
