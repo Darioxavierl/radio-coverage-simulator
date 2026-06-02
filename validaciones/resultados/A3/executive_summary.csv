@@ -1,0 +1,6 @@
+metric,value
+RMSE_dB,9.840278276419836
+Bias_dB,9.475745546307108
+Pearson_r,0.958916108664423
+MatchDistanceP95_m,0.0001285109431480304
+Reliability,high
