@@ -1,0 +1,72 @@
+{
+  "simulation_info": {
+    "timestamp": "2026-06-01T22:14:18.511226",
+    "software": "RF Coverage Tool v1.0",
+    "export_timestamp": "2026-06-01T22:14:40.449464"
+  },
+  "compute_performance": {
+    "gpu_used": true,
+    "gpu_device": "GPU: NVIDIA GeForce GTX 1660 SUPER (CC 7.5)",
+    "total_execution_time_seconds": 82.75,
+    "antenna_times_seconds": {
+      "2b150c90-f83d-4026-afce-b9f6d73bf29b": 17.523,
+      "55c50a39-7ae8-4633-97ba-54eec9ffd401": 15.902,
+      "d190bdc3-dab1-48a2-b929-7fbced030769": 16.418,
+      "b91c0fa3-40d6-4504-b7ce-80677d3b9d08": 16.037,
+      "8f8ba5ab-d749-4922-b920-f3da0b1fea5d": 16.23
+    },
+    "terrain_loading_time_seconds": 0.222,
+    "antenna_total_times_seconds": {
+      "2b150c90-f83d-4026-afce-b9f6d73bf29b": 17.523,
+      "55c50a39-7ae8-4633-97ba-54eec9ffd401": 15.902,
+      "d190bdc3-dab1-48a2-b929-7fbced030769": 16.418,
+      "b91c0fa3-40d6-4504-b7ce-80677d3b9d08": 16.037,
+      "8f8ba5ab-d749-4922-b920-f3da0b1fea5d": 16.23
+    },
+    "antenna_coverage_times_seconds": {
+      "2b150c90-f83d-4026-afce-b9f6d73bf29b": 10.21,
+      "55c50a39-7ae8-4633-97ba-54eec9ffd401": 9.103,
+      "d190bdc3-dab1-48a2-b929-7fbced030769": 9.296,
+      "b91c0fa3-40d6-4504-b7ce-80677d3b9d08": 9.139,
+      "8f8ba5ab-d749-4922-b920-f3da0b1fea5d": 9.386
+    },
+    "antenna_render_times_seconds": {
+      "2b150c90-f83d-4026-afce-b9f6d73bf29b": 0.446,
+      "55c50a39-7ae8-4633-97ba-54eec9ffd401": 0.272,
+      "d190bdc3-dab1-48a2-b929-7fbced030769": 0.28,
+      "b91c0fa3-40d6-4504-b7ce-80677d3b9d08": 0.269,
+      "8f8ba5ab-d749-4922-b920-f3da0b1fea5d": 0.264
+    },
+    "multi_antenna_aggregation_time_seconds": 0.416
+  },
+  "grid_parameters": {
+    "radius_km": 5,
+    "resolution": 350,
+    "total_grid_points": 122500
+  },
+  "propagation_model": {
+    "model_name": "cost231_hata",
+    "parameters": {
+      "environment": "Urban",
+      "city_type": "medium"
+    }
+  },
+  "data_description": {
+    "num_antennas": 5,
+    "num_grid_points_per_antenna": 122500,
+    "fields": [
+      "antenna_id",
+      "frequency_mhz",
+      "tx_power_dbm",
+      "tx_height_m",
+      "grid_lat",
+      "grid_lon",
+      "rsrp_dbm",
+      "path_loss_db",
+      "antenna_gain_dbi",
+      "model_used",
+      "environment",
+      "terrain_type"
+    ]
+  }
+}

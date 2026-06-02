@@ -1,27 +1,35 @@
 {
   "simulation_info": {
-    "timestamp": "2026-05-31T21:23:15.686478",
+    "timestamp": "2026-06-01T21:11:59.903420",
     "software": "RF Coverage Tool v1.0",
-    "export_timestamp": "2026-05-31T21:25:04.383155"
+    "export_timestamp": "2026-06-01T21:24:44.808831"
   },
   "compute_performance": {
     "gpu_used": true,
     "gpu_device": "GPU: NVIDIA GeForce GTX 1660 SUPER (CC 7.5)",
-    "total_execution_time_seconds": 18.91,
+    "total_execution_time_seconds": 57.39,
     "antenna_times_seconds": {
-      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 18.725
+      "3ac4c750-de6c-4219-9e7d-0bd008fcde78": 19.818,
+      "19fe2c43-027a-45a3-8f98-bacb60830943": 20.216,
+      "175da74d-4327-4409-9a5e-33a31cf4b8a3": 16.62
     },
-    "terrain_loading_time_seconds": 0.18,
+    "terrain_loading_time_seconds": 0.342,
     "antenna_total_times_seconds": {
-      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 18.725
+      "3ac4c750-de6c-4219-9e7d-0bd008fcde78": 19.818,
+      "19fe2c43-027a-45a3-8f98-bacb60830943": 20.216,
+      "175da74d-4327-4409-9a5e-33a31cf4b8a3": 16.62
     },
     "antenna_coverage_times_seconds": {
-      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 11.095
+      "3ac4c750-de6c-4219-9e7d-0bd008fcde78": 11.135,
+      "19fe2c43-027a-45a3-8f98-bacb60830943": 11.467,
+      "175da74d-4327-4409-9a5e-33a31cf4b8a3": 9.778
     },
     "antenna_render_times_seconds": {
-      "d0c09d78-6240-41f8-9812-0b83ef91d1b0": 0.521
+      "3ac4c750-de6c-4219-9e7d-0bd008fcde78": 0.596,
+      "19fe2c43-027a-45a3-8f98-bacb60830943": 0.337,
+      "175da74d-4327-4409-9a5e-33a31cf4b8a3": 0.262
     },
-    "multi_antenna_aggregation_time_seconds": 0.002
+    "multi_antenna_aggregation_time_seconds": 0.387
   },
   "grid_parameters": {
     "radius_km": 4,
@@ -35,7 +43,7 @@
     }
   },
   "data_description": {
-    "num_antennas": 1,
+    "num_antennas": 3,
     "num_grid_points_per_antenna": 122500,
     "fields": [
       "antenna_id",
