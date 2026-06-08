@@ -871,13 +871,14 @@ class MainWindow(QMainWindow):
                     "GeoTIFF Files (*.tif)"
                 )
                 if filename:
-                    exporter.export_geotiff(results, filename, target_crs=target_crs)
+                    created_files = exporter.export_geotiff(results, filename, target_crs=target_crs)
                     self.status_label.setText(f"Resultados exportados a GeoTIFF ({target_crs})")
-                    self.logger.info(f"Export complete: {filename}")
+                    self.logger.info(f"Export complete: {created_files}")
+                    file_list = "\n".join(created_files)
                     QMessageBox.information(
                         self,
                         "Exportación completada",
-                        f"Archivo: {filename}\nCRS: {target_crs}",
+                        f"Archivos creados:\n{file_list}\nCRS: {target_crs}",
                     )
 
             elif format_type == 'kml':

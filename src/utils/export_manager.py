@@ -215,24 +215,147 @@ class ExportManager:
             self.logger.error(f"Error exporting metadata JSON: {e}")
             raise
 
-    def export_geotiff(self, results, filename, target_crs='EPSG:4326'):
+    def _write_geotiff_single(self, coverage, filename, target_crs):
         """
-        Exporta como GeoTIFF multibanda georeferenciado
+        Escribe un GeoTIFF multibanda para una cobertura individual o agregada.
 
         Bandas:
-        1. RSRP (dBm)
-        2. Path Loss (dB)
-        3. Antenna Gain (dBi)
+          1. RSRP (dBm)
+          2. Path Loss (dB)
+          3. Antenna Gain (dBi)
+          4. LOS Map (1=LOS, 0=Shadow)  — solo si coverage contiene 'los_map'
 
         Args:
-            results: Dict con results de simulación
-            filename: Ruta completa del archivo GeoTIFF
-            target_crs: CRS de salida (ej. 'EPSG:4326', 'EPSG:32717')
+            coverage: Dict de cobertura con lats, lons, rsrp, path_loss, etc.
+            filename:  Ruta completa del archivo de salida
+            target_crs: CRS destino (ej. 'EPSG:4326', 'EPSG:32717')
+
+        Returns:
+            str: ruta del archivo escrito
         """
+        import rasterio
+        from rasterio.transform import Affine
+        from rasterio.warp import calculate_default_transform, reproject, Resampling
+
+        lats_2d = coverage['lats']
+        lons_2d = coverage['lons']
+        rsrp_2d       = coverage['rsrp'].astype(np.float32)
+        path_loss_2d  = coverage.get('path_loss',    np.zeros_like(rsrp_2d)).astype(np.float32)
+        antenna_gain_2d = coverage.get('antenna_gain', np.zeros_like(rsrp_2d)).astype(np.float32)
+
+        los_2d_raw = coverage.get('los_map')
+        has_los    = los_2d_raw is not None
+        los_2d     = los_2d_raw.astype(np.float32) if has_los else None
+
+        west  = float(lons_2d.min())
+        east  = float(lons_2d.max())
+        south = float(lats_2d.min())
+        north = float(lats_2d.max())
+        height, width = rsrp_2d.shape
+
+        transform = Affine(
+            (east - west) / width, 0, west,
+            0, -(north - south) / height, north
+        )
+        source_crs = 'EPSG:4326'
+
+        if target_crs != source_crs:
+            dst_transform, dst_width, dst_height = calculate_default_transform(
+                source_crs, target_crs, width, height, west, south, east, north
+            )
+
+            rsrp_out        = np.zeros((dst_height, dst_width), dtype=np.float32)
+            path_loss_out   = np.zeros((dst_height, dst_width), dtype=np.float32)
+            antenna_gain_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+
+            for src, dst_arr in [
+                (rsrp_2d,        rsrp_out),
+                (path_loss_2d,   path_loss_out),
+                (antenna_gain_2d, antenna_gain_out),
+            ]:
+                reproject(
+                    source=src, destination=dst_arr,
+                    src_transform=transform, src_crs=source_crs,
+                    dst_transform=dst_transform, dst_crs=target_crs,
+                    resampling=Resampling.bilinear,
+                )
+
+            los_out = None
+            if has_los:
+                los_out = np.zeros((dst_height, dst_width), dtype=np.float32)
+                reproject(
+                    source=los_2d, destination=los_out,
+                    src_transform=transform, src_crs=source_crs,
+                    dst_transform=dst_transform, dst_crs=target_crs,
+                    resampling=Resampling.nearest,
+                )
+
+            output_transform = dst_transform
+            output_crs    = target_crs
+            output_height = dst_height
+            output_width  = dst_width
+        else:
+            rsrp_out        = rsrp_2d
+            path_loss_out   = path_loss_2d
+            antenna_gain_out = antenna_gain_2d
+            los_out          = los_2d
+            output_transform = transform
+            output_crs       = source_crs
+            output_height    = height
+            output_width     = width
+
+        band_count = 4 if (has_los and los_out is not None) else 3
+        with rasterio.open(
+            filename, 'w',
+            driver='GTiff',
+            height=output_height,
+            width=output_width,
+            count=band_count,
+            dtype=np.float32,
+            crs=output_crs,
+            transform=output_transform,
+        ) as dst:
+            dst.write(rsrp_out,        1)
+            dst.write(path_loss_out,   2)
+            dst.write(antenna_gain_out, 3)
+            dst.update_tags(1, DESCRIPTION='RSRP (dBm)')
+            dst.update_tags(2, DESCRIPTION='Path Loss (dB)')
+            dst.update_tags(3, DESCRIPTION='Antenna Gain (dBi)')
+            if has_los and los_out is not None:
+                dst.write(los_out, 4)
+                dst.update_tags(4, DESCRIPTION='LOS Map (1=LOS, 0=Shadow)')
+            dst.update_tags(export_crs=output_crs, source_crs=source_crs)
+
+        self.logger.info(f"GeoTIFF escrito: {filename}")
+        return str(filename)
+
+    def export_geotiff(self, results, filename, target_crs='EPSG:4326'):
+        """
+        Exporta como GeoTIFF multibanda georeferenciado.
+
+        Genera un archivo por cobertura:
+          - {filename}              → cobertura agregada (o única antena)
+          - {stem}_{ant_id}.tif    → cobertura individual de cada antena
+                                     (solo cuando hay más de una antena)
+
+        Bandas en cada archivo:
+          1. RSRP (dBm)
+          2. Path Loss (dB)
+          3. Antenna Gain (dBi)
+          4. LOS Map (1=LOS, 0=Shadow) — si disponible
+
+        Args:
+            results:    Dict con structure {'individual': {...}, 'aggregated': {...}}
+            filename:   Ruta completa del archivo GeoTIFF agregado
+            target_crs: CRS de salida (ej. 'EPSG:4326', 'EPSG:32717')
+
+        Returns:
+            list[str]: lista de rutas de todos los archivos creados
+        """
+        import re
+
         try:
-            import rasterio
-            from rasterio.transform import Affine
-            from rasterio.warp import calculate_default_transform, reproject, Resampling
+            import rasterio  # noqa: F401 — verificar dependencia temprano
         except ImportError:
             self.logger.error("rasterio not installed. Install: pip install rasterio")
             raise
@@ -241,215 +364,99 @@ class ExportManager:
             # Validar CRS destino para evitar archivos corruptos
             PyprojCRS.from_string(target_crs)
 
-            # PHASE 7: Usar agregada si existe, si no usar primera antena individual
-            if 'aggregated' in results:
-                self.logger.info("Exporting aggregated coverage to GeoTIFF")
-                coverage = results['aggregated']
-            else:
-                self.logger.info("Exporting individual coverage (first antenna) to GeoTIFF")
-                antenna_id = list(results['individual'].keys())[0]
-                coverage = results['individual'][antenna_id]
+            created_files = []
+            tif_path = Path(filename)
 
-            # Extraer datos
-            lats_2d = coverage['lats']
-            lons_2d = coverage['lons']
-            rsrp_2d = coverage['rsrp'].astype(np.float32)
-            path_loss_2d = coverage.get('path_loss', np.zeros_like(rsrp_2d)).astype(np.float32)
-            antenna_gain_2d = coverage.get('antenna_gain', np.zeros_like(rsrp_2d)).astype(np.float32)
+            def safe_id(antenna_id):
+                return re.sub(r'[^\w]', '_', str(antenna_id))
 
-            # LOS band (opcional, retrocompatible)
-            los_2d_raw = coverage.get('los_map')
-            has_los = los_2d_raw is not None
-            los_2d = los_2d_raw.astype(np.float32) if has_los else None
+            # ---------------------------------------------------------------
+            # 1. Archivo AGREGADO (siempre, en la ruta que pide el usuario)
+            # ---------------------------------------------------------------
+            agg = results.get('aggregated') or results['individual'][
+                list(results['individual'].keys())[0]
+            ]
+            self.logger.info(f"Exportando GeoTIFF agregado: {filename}")
+            self._write_geotiff_single(agg, filename, target_crs)
+            created_files.append(str(filename))
 
-            # Crear transform para georeferenciación
-            west = float(lons_2d.min())
-            east = float(lons_2d.max())
-            south = float(lats_2d.min())
-            north = float(lats_2d.max())
-
-            height, width = rsrp_2d.shape
-
-            transform = Affine(
-                (east - west) / width, 0, west,
-                0, -(north - south) / height, north
-            )
-
-            # CRS y datos fuente (la grilla de simulación está en lat/lon WGS84)
-            source_crs = 'EPSG:4326'
-
-            # Reproyectar si el usuario selecciona un CRS diferente al de origen
-            if target_crs != source_crs:
-                dst_transform, dst_width, dst_height = calculate_default_transform(
-                    source_crs,
-                    target_crs,
-                    width,
-                    height,
-                    west,
-                    south,
-                    east,
-                    north,
-                )
-
-                rsrp_out = np.zeros((dst_height, dst_width), dtype=np.float32)
-                path_loss_out = np.zeros((dst_height, dst_width), dtype=np.float32)
-                antenna_gain_out = np.zeros((dst_height, dst_width), dtype=np.float32)
-
-                reproject(
-                    source=rsrp_2d,
-                    destination=rsrp_out,
-                    src_transform=transform,
-                    src_crs=source_crs,
-                    dst_transform=dst_transform,
-                    dst_crs=target_crs,
-                    resampling=Resampling.bilinear,
-                )
-                reproject(
-                    source=path_loss_2d,
-                    destination=path_loss_out,
-                    src_transform=transform,
-                    src_crs=source_crs,
-                    dst_transform=dst_transform,
-                    dst_crs=target_crs,
-                    resampling=Resampling.bilinear,
-                )
-                reproject(
-                    source=antenna_gain_2d,
-                    destination=antenna_gain_out,
-                    src_transform=transform,
-                    src_crs=source_crs,
-                    dst_transform=dst_transform,
-                    dst_crs=target_crs,
-                    resampling=Resampling.bilinear,
-                )
-
-                los_out = None
-                if has_los:
-                    los_out = np.zeros((dst_height, dst_width), dtype=np.float32)
-                    reproject(
-                        source=los_2d,
-                        destination=los_out,
-                        src_transform=transform,
-                        src_crs=source_crs,
-                        dst_transform=dst_transform,
-                        dst_crs=target_crs,
-                        resampling=Resampling.nearest,
+            # ---------------------------------------------------------------
+            # 2. Archivos INDIVIDUALES (solo si hay más de una antena)
+            # ---------------------------------------------------------------
+            individual = results.get('individual', {})
+            if len(individual) > 1:
+                for ant_id, cov in individual.items():
+                    ind_filename = tif_path.with_name(
+                        f'{tif_path.stem}_{safe_id(ant_id)}{tif_path.suffix}'
                     )
+                    ant_name = cov.get('antenna', {}).get('name', ant_id)
+                    self.logger.info(f"Exportando GeoTIFF individual '{ant_name}': {ind_filename}")
+                    self._write_geotiff_single(cov, ind_filename, target_crs)
+                    created_files.append(str(ind_filename))
 
-                output_transform = dst_transform
-                output_crs = target_crs
-                output_height = dst_height
-                output_width = dst_width
-            else:
-                rsrp_out = rsrp_2d
-                path_loss_out = path_loss_2d
-                antenna_gain_out = antenna_gain_2d
-                los_out = los_2d  # None si no hay LOS
-                output_transform = transform
-                output_crs = source_crs
-                output_height = height
-                output_width = width
-
-            # Escribir GeoTIFF (3 bandas base + banda 4 LOS si disponible)
-            band_count = 4 if (has_los and los_out is not None) else 3
-            with rasterio.open(
-                filename, 'w',
-                driver='GTiff',
-                height=output_height,
-                width=output_width,
-                count=band_count,
-                dtype=np.float32,
-                crs=output_crs,
-                transform=output_transform
-            ) as dst:
-                dst.write(rsrp_out, 1)          # Banda 1: RSRP
-                dst.write(path_loss_out, 2)     # Banda 2: Path Loss
-                dst.write(antenna_gain_out, 3)  # Banda 3: Antenna Gain
-
-                dst.update_tags(1, DESCRIPTION='RSRP (dBm)')
-                dst.update_tags(2, DESCRIPTION='Path Loss (dB)')
-                dst.update_tags(3, DESCRIPTION='Antenna Gain (dBi)')
-
-                if has_los and los_out is not None:
-                    dst.write(los_out, 4)       # Banda 4: LOS
-                    dst.update_tags(4, DESCRIPTION='LOS Map (1=LOS, 0=Shadow)')
-
-                dst.update_tags(export_crs=output_crs, source_crs=source_crs)
-
-            self.logger.info(f"GeoTIFF multibanda exportado: {filename}")
-            return filename
+            self.logger.info(
+                f"GeoTIFF exportado: {len(created_files)} archivo(s) en {tif_path.parent}"
+            )
+            return created_files
 
         except Exception as e:
             self.logger.error(f"Error exporting GeoTIFF: {e}")
             raise
 
-    def export_kml(self, results, filename):
+    # ------------------------------------------------------------------
+    # Helpers privados para KML
+    # ------------------------------------------------------------------
+
+    def _extract_overlay_png(self, image_url, output_path):
         """
-        Exporta como KML con heatmap georeferenciado como overlay
+        Extrae una imagen data-URL (base64) a un archivo PNG en disco.
 
         Args:
-            results: Dict con results de simulación
-            filename: Ruta completa del archivo KML
+            image_url: data URL "data:image/...;base64,<data>" o ruta directa
+            output_path: Path completo de destino (ej. Path('/tmp/foo.png'))
+
+        Returns:
+            str: nombre de archivo relativo (solo el basename) para referenciar en KML,
+                 o None si image_url está vacío o no es un data URL.
         """
-        try:
-            # PHASE 7: Usar agregada si existe, si no usar primera antena individual
-            if 'aggregated' in results:
-                self.logger.info("Exporting aggregated coverage to KML")
-                coverage = results['aggregated']
-                antenna_name = 'Aggregated Coverage'
-            else:
-                self.logger.info("Exporting individual coverage (first antenna) to KML")
-                antenna_id = list(results['individual'].keys())[0]
-                coverage = results['individual'][antenna_id]
-                antenna_name = antenna_id
+        if not image_url:
+            return None
+        if image_url.startswith('data:image') and ';base64,' in image_url:
+            b64_data = image_url.split(';base64,', 1)[1]
+            image_bytes = base64.b64decode(b64_data)
+            with open(output_path, 'wb') as f:
+                f.write(image_bytes)
+            return Path(output_path).name
+        # Si ya es una ruta o URL directa, devolverla tal cual
+        return image_url
 
-            # Obtener bounds
-            bounds = coverage['bounds']
-            north = bounds[1][0]
-            south = bounds[0][0]
-            east = bounds[1][1]
-            west = bounds[0][1]
+    def _build_ground_overlay_block(self, name, description, icon_href,
+                                    bounds, draw_order=0, visibility=1):
+        """
+        Construye un bloque XML <GroundOverlay> completo.
 
-            # Obtener imagen heatmap RSRP
-            image_url = coverage.get('image_url', '')
-            icon_href = image_url
+        Args:
+            name: Nombre de la capa
+            description: Descripción
+            icon_href: Ruta/URL del PNG
+            bounds: [[south, west], [north, east]]
+            draw_order: Orden de renderizado en Google Earth (mayor = encima)
+            visibility: 1=visible, 0=oculto por defecto
 
-            # Si viene en data URL, exportar PNG externo para mayor compatibilidad KML
-            if image_url.startswith('data:image') and ';base64,' in image_url:
-                base64_data = image_url.split(';base64,', 1)[1]
-                image_bytes = base64.b64decode(base64_data)
-
-                kml_path = Path(filename)
-                image_filename = f"{kml_path.stem}_overlay.png"
-                image_path = kml_path.with_name(image_filename)
-
-                with open(image_path, 'wb') as img_file:
-                    img_file.write(image_bytes)
-
-                icon_href = image_filename
-
-            # LOS overlay (opcional, retrocompatible)
-            los_icon_href = None
-            los_url = coverage.get('los_image_url', '')
-            if los_url and los_url.startswith('data:image') and ';base64,' in los_url:
-                los_b64 = los_url.split(';base64,', 1)[1]
-                los_bytes = base64.b64decode(los_b64)
-                kml_path = Path(filename)
-                los_filename = f"{kml_path.stem}_los_overlay.png"
-                los_path = kml_path.with_name(los_filename)
-                with open(los_path, 'wb') as img_file:
-                    img_file.write(los_bytes)
-                los_icon_href = los_filename
-
-            # Bloque LOS GroundOverlay (solo si hay datos LOS)
-            los_overlay_block = ''
-            if los_icon_href:
-                los_overlay_block = f'''
-    <GroundOverlay>
-      <name>LOS Map</name>
-      <description>Line of Sight (green=LOS, orange=shadow)</description>
+        Returns:
+            str: bloque XML listo para insertar en el documento KML
+        """
+        south = bounds[0][0]
+        west  = bounds[0][1]
+        north = bounds[1][0]
+        east  = bounds[1][1]
+        return f'''    <GroundOverlay>
+      <name>{name}</name>
+      <description>{description}</description>
+      <visibility>{visibility}</visibility>
+      <drawOrder>{draw_order}</drawOrder>
       <Icon>
-                <href>{los_icon_href}</href>
+        <href>{icon_href}</href>
         <viewBoundScale>0.75</viewBoundScale>
       </Icon>
       <LatLonBox>
@@ -459,47 +466,165 @@ class ExportManager:
         <west>{west}</west>
         <rotation>0</rotation>
       </LatLonBox>
-      <transparency>0.7</transparency>
     </GroundOverlay>'''
 
-            # Crear KML
+    def export_kml(self, results, filename):
+        """
+        Exporta como KML con heatmap georeferenciado como overlay.
+
+        Genera un KML con carpetas anidadas:
+          - "Cobertura Agregada": RSRP y LOS del mapa combinado (visible por defecto)
+          - "Cobertura Individual": una subcarpeta por antena con sus propios
+            overlays RSRP y LOS (ocultos por defecto, activar en Google Earth)
+
+        Args:
+            results: Dict con structure {'individual': {...}, 'aggregated': {...}}
+            filename: Ruta completa del archivo KML
+
+        Returns:
+            str: ruta del archivo KML creado
+        """
+        import re
+
+        try:
+            kml_path = Path(filename)
+            stem = kml_path.stem
+
+            def safe_id(antenna_id):
+                return re.sub(r'[^\w]', '_', str(antenna_id))
+
+            # ---------------------------------------------------------------
+            # 1. Carpeta AGREGADO
+            # ---------------------------------------------------------------
+            agg = results.get('aggregated') or results['individual'][
+                list(results['individual'].keys())[0]
+            ]
+
+            agg_rsrp_png = self._extract_overlay_png(
+                agg.get('image_url', ''),
+                kml_path.with_name(f'{stem}_agg_rsrp.png')
+            )
+            agg_los_png = self._extract_overlay_png(
+                agg.get('los_image_url', ''),
+                kml_path.with_name(f'{stem}_agg_los.png')
+            )
+
+            agg_rsrp_block = ''
+            if agg_rsrp_png:
+                agg_rsrp_block = self._build_ground_overlay_block(
+                    name='RSRP Agregado',
+                    description='Potencia de señal recibida - mejor servidor (dBm)',
+                    icon_href=agg_rsrp_png,
+                    bounds=agg['bounds'],
+                    draw_order=10,
+                    visibility=1
+                )
+
+            agg_los_block = ''
+            if agg_los_png:
+                agg_los_block = self._build_ground_overlay_block(
+                    name='LOS Agregado',
+                    description='Línea de visión directa (verde=LOS, naranja=sombra)',
+                    icon_href=agg_los_png,
+                    bounds=agg['bounds'],
+                    draw_order=9,
+                    visibility=1
+                )
+
+            aggregated_folder = f'''  <Folder>
+    <name>Cobertura Agregada</name>
+    <visibility>1</visibility>
+{agg_rsrp_block}
+{agg_los_block}
+  </Folder>'''
+
+            # ---------------------------------------------------------------
+            # 2. Carpeta INDIVIDUAL — una subcarpeta por antena
+            # ---------------------------------------------------------------
+            individual_subfolders = []
+            for ant_id, cov in results['individual'].items():
+                sid = safe_id(ant_id)
+                ant_name = cov.get('antenna', {}).get('name', ant_id)
+
+                ind_rsrp_png = self._extract_overlay_png(
+                    cov.get('image_url', ''),
+                    kml_path.with_name(f'{stem}_{sid}_rsrp.png')
+                )
+                ind_los_png = self._extract_overlay_png(
+                    cov.get('los_image_url', ''),
+                    kml_path.with_name(f'{stem}_{sid}_los.png')
+                )
+
+                rsrp_block = ''
+                if ind_rsrp_png:
+                    rsrp_block = self._build_ground_overlay_block(
+                        name=f'RSRP – {ant_name}',
+                        description=f'Potencia de señal recibida de {ant_name} (dBm)',
+                        icon_href=ind_rsrp_png,
+                        bounds=cov['bounds'],
+                        draw_order=5,
+                        visibility=0
+                    )
+
+                los_block = ''
+                if ind_los_png:
+                    los_block = self._build_ground_overlay_block(
+                        name=f'LOS – {ant_name}',
+                        description=f'Línea de visión directa de {ant_name}',
+                        icon_href=ind_los_png,
+                        bounds=cov['bounds'],
+                        draw_order=4,
+                        visibility=0
+                    )
+
+                subfolder = f'''    <Folder>
+      <name>{ant_name}</name>
+      <visibility>0</visibility>
+{rsrp_block}
+{los_block}
+    </Folder>'''
+                individual_subfolders.append(subfolder)
+
+            individual_folder = f'''  <Folder>
+    <name>Cobertura Individual</name>
+    <visibility>0</visibility>
+    <description>Activa cada antena individualmente en el panel de capas</description>
+{chr(10).join(individual_subfolders)}
+  </Folder>'''
+
+            # ---------------------------------------------------------------
+            # 3. Placemark centro
+            # ---------------------------------------------------------------
+            bounds = agg['bounds']
+            center_lon = (bounds[0][1] + bounds[1][1]) / 2
+            center_lat = (bounds[0][0] + bounds[1][0]) / 2
+
+            placemark_block = f'''  <Placemark>
+    <name>Coverage Center</name>
+    <Point>
+      <coordinates>{center_lon},{center_lat},0</coordinates>
+    </Point>
+  </Placemark>'''
+
+            # ---------------------------------------------------------------
+            # 4. Documento KML completo
+            # ---------------------------------------------------------------
+            n_individual = len(results['individual'])
             kml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>RF Coverage Simulation - {antenna_name}</name>
-    <description>Exported from RF Coverage Tool</description>
-
-    <GroundOverlay>
-      <name>Coverage Heatmap</name>
-      <description>RSRP Coverage (dBm)</description>
-      <Icon>
-                <href>{icon_href}</href>
-        <viewBoundScale>0.75</viewBoundScale>
-      </Icon>
-      <LatLonBox>
-        <north>{north}</north>
-        <south>{south}</south>
-        <east>{east}</east>
-        <west>{west}</west>
-        <rotation>0</rotation>
-      </LatLonBox>
-      <transparency>0.7</transparency>
-    </GroundOverlay>
-    {los_overlay_block}
-    <Placemark>
-      <name>Coverage Center</name>
-      <Point>
-        <coordinates>{(west+east)/2},{(south+north)/2},0</coordinates>
-      </Point>
-    </Placemark>
-
+    <name>RF Coverage Simulation</name>
+    <description>Exported from RF Coverage Tool — {n_individual} antenna(s)</description>
+{aggregated_folder}
+{individual_folder}
+{placemark_block}
   </Document>
 </kml>'''
 
-            with open(filename, 'w') as f:
+            with open(filename, 'w', encoding='utf-8') as f:
                 f.write(kml_content)
 
-            self.logger.info(f"KML exportado: {filename}")
+            self.logger.info(f"KML exportado con {n_individual} antena(s): {filename}")
             return filename
 
         except Exception as e:
