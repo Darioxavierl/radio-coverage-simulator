@@ -1,0 +1,62 @@
+==========================================================================================
+Validacion ITU-R P.1546-6
+Generado: 2026-06-09 23:07:38
+==========================================================================================
+
+METODOLOGIA:
+  Nivel 1: get_reference_field_intensity() vs E_step11 del log ITU
+           Paso 11 = interpolacion de tabla SIN correcciones h2/TCA/clutter
+           Valida la exactitud de las tablas y la interpolacion.
+
+  Nivel 2 (P.2108-1): ITUR_P1546Model [clutter_model='p2108'] vs PL_final ITU
+           h2 §9 [impl.] + TCA=0 (plano) + P.2108-1 §3 (modelo moderno RX)
+           Diferencia deliberada: la ITU usa clutter §10 (TX).
+
+  Nivel 2a (Annex5):  ITUR_P1546Model [clutter_model='itu_annex5'] vs PL_final ITU
+           h2 §9 [impl.] + TCA=0 (plano) + §10 Annex5 (clutter TX P.1546)
+           Comparacion directa con el modelo de referencia ITU.
+
+NIVEL 1 — Interpolacion de tablas (paso 11):
+  Casos con log ITU disponible: 10/10
+  PASS (|err|<=1dB): 10/10 (100.0%)
+  RMSE:      0.1136 dB
+  MAE:       0.0597 dB
+  Bias:      -0.0073 dB
+  Max |err|: 0.3346 dB  (rango: -0.335 a +0.066 dB)
+
+NIVEL 2 — Modelo completo P.2108-1 vs PL_final ITU:
+  Casos evaluados: 10/10
+  PASS (|err|<=2dB): 2/10 (20.0%)
+  RMSE:      11.2307 dB
+  MAE:       8.8921 dB
+  Bias:      +8.8921 dB
+  Max |err|: 19.0859 dB
+
+NIVEL 2a — Modelo completo Annex5 §10 vs PL_final ITU:
+  Casos evaluados: 10/10
+  PASS (|err|<=2dB): 10/10 (100.0%)
+  RMSE:      0.1270 dB
+  MAE:       0.0726 dB
+  Bias:      +0.0726 dB
+  Max |err|: 0.3812 dB
+  NOTA: Los errores residuales en Nivel 2a se deben a:
+        - §16 slope-path no implementado (<0.1 dB en perfiles planos)
+        - Curvatura terrestre no corregida (relevante solo en d>50km)
+        - §10 TX clutter derivado automaticamente del entorno (sin R1 explicito)
+
+FUENTE DE TABLAS:
+  Extraido de exceltables{1,9,17} de P1546FieldStrMixed.m
+  (MATLAB oficial ITU-R P.1546-6 v6.2)
+
+Profile                                   #     f      d    h1   h2    dS11  S11 |  PL_ITU PL_p2108     dL2   L2  PL_ann5    dL2a  L2a
+-----------------------------------------------------------------------------------------------------------------------------
+flat_1km.csv                              1   900    1.0 100.0  5.0  -0.000 PASS |  103.61   103.66   +0.05 PASS   103.66   +0.05 PASS
+flat_10km.csv                             1   900   10.0 100.0  5.0  -0.335 PASS |  135.35   135.74   +0.38 PASS   135.74   +0.38 PASS
+flat_100km.csv                            1  2600  100.0   7.0  1.0  +0.066 PASS |  222.29   224.57   +2.28 FAIL   222.31   +0.02 PASS
+flat_100km.csv                            2  2600  100.0 1000.0  1.0  +0.000 PASS |  195.00   197.32   +2.32 FAIL   195.05   +0.06 PASS
+flat_100km_denseurban.csv                 1  2600  100.0   7.0  1.0  +0.066 PASS |  227.82   239.24  +11.42 FAIL   227.84   +0.02 PASS
+flat_100km_denseurban.csv                 2  2600  100.0 1000.0  1.0  +0.000 PASS |  200.47   211.93  +11.46 FAIL   200.52   +0.06 PASS
+flat_100km_suburban.csv                   1  2600  100.0   7.0  1.0  +0.066 PASS |  221.74   233.16  +11.42 FAIL   221.76   +0.02 PASS
+flat_100km_suburban.csv                   2  2600  100.0 1000.0  1.0  +0.000 PASS |  194.47   205.93  +11.46 FAIL   194.53   +0.06 PASS
+flat_100km_urban.csv                      1  2600  100.0   7.0  1.0  +0.066 PASS |  225.40   244.45  +19.05 FAIL   225.42   +0.02 PASS
+flat_100km_urban.csv                      2  2600  100.0 1000.0  1.0  +0.000 PASS |  198.03   217.11  +19.09 FAIL   198.08   +0.06 PASS
