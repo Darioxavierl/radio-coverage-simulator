@@ -125,6 +125,7 @@ class SimulationWorker(QObject):
             elif self.config.get('model') == 'itu_p1546':
                 base_model_params['environment'] = self.config.get('environment', 'Urban')
                 base_model_params['terrain_type'] = self.config.get('terrain_type', 'mixed')
+                base_model_params['clutter_model'] = self.config.get('clutter_model', 'p2108')
 
             elif self.config.get('model') == 'three_gpp_38901':
                 base_model_params['scenario'] = self.config.get('scenario', 'UMa')

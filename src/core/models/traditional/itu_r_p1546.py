@@ -131,6 +131,9 @@ class ITUR_P1546Model:
                            location_percentage: int = 50,
                            smoothed_terrain_profiles: Optional[np.ndarray] = None,
                            profile_distances: Optional[np.ndarray] = None,
+                           clutter_model: str = 'p2108',
+                           tx_clutter_height_m: Optional[float] = None,
+                           rx_clutter_height_m: Optional[float] = None,
                            **kwargs) -> np.ndarray:
         """
         Calcula Path Loss usando ITU-R P.1546-6.
@@ -140,12 +143,14 @@ class ITUR_P1546Model:
            Si d < 15 km o sin DEM: h_eff = h_tx_AGL.
            Si d ≥ 15 km con DEM: h_eff = h_tx + z_tx − z_mean(3–15 km).
         2. E[dBμV/m] — interpolación bilineal log-lineal sobre tablas ITU.
+        2b. h2 correction — P.1546-6 §9 (Annex 5, Step 14, eqs. 27–29).
         3. TCA correction — §4.5
            J(θ_tc) aplicada cuando θ_tc > 0° (sólo si hay perfiles DEM).
-        4. Clutter loss — ITU-R P.2108-1 §3
-           Basada en entorno (Urban/Suburban/Rural) y altura del receptor.
+        4. Clutter correction — seleccionable via clutter_model:
+           'p2108'     : ITU-R P.2108-1 §3 (modelo moderno, correc. RX)
+           'itu_annex5': P.1546-6 §10 (Annex 5, Step 15, correc. TX)
         5. Conversión E → PL — §5
-           PL = 139.3 + 20·log₁₀(f_MHz) − E + TCA + clutter + percentile
+           PL = 139.3 + 20·log₁₀(f_MHz) − E + h2 + TCA + clutter + percentile
 
         Args:
             distances: Distancias en metros (1D o 2D, n_receptors)
@@ -161,6 +166,15 @@ class ITUR_P1546Model:
             smoothed_terrain_profiles: Perfiles suavizados (n_receptors, n_radios)
                 Si se proporciona, se usa en lugar de terrain_profiles para h_eff.
             profile_distances: Distancias TX→punto en cada perfil (n_receptors, n_radios) [m]
+            clutter_model: 'p2108' (default) | 'itu_annex5'
+                'p2108'     → ITU-R P.2108-1 §3: modelo moderno, correc. entorno RX.
+                'itu_annex5'→ P.1546-6 Annex 5 §10: correc. clutter TX (Step 15).
+            tx_clutter_height_m: Altura representativa clutter TX R1 [m].
+                None (default) → derivada del entorno (Rural/Suburban=10m, Urban=20m,
+                Dense Urban=30m). Solo relevante cuando clutter_model='itu_annex5'.
+            rx_clutter_height_m: Altura representativa clutter RX R2 [m] para §9 h2.
+                None (default) → derivada del entorno (Rural/Suburban=10m, Urban=15m,
+                Dense Urban=20m).
             **kwargs: Parámetros adicionales ignorados
 
         Returns:
@@ -213,6 +227,16 @@ class ITUR_P1546Model:
             h_eff=h_eff
         )
         
+        # === PASO 2b: Corrección altura receptora h2 — P.1546-6 §9 (Annex 5, Step 14) ===
+        h2_correction = self._calculate_h2_receiver_correction_vectorized(
+            h2=mobile_height,
+            h1=h_eff,
+            distances_km=distances_km,
+            environment=environment,
+            frequency=frequency,
+            rx_clutter_height_m=rx_clutter_height_m,
+        )
+
         # === PASO 3: TCA correction — P.1546-6 §4.5 (solo si hay perfiles DEM) ===
         if terrain_profiles is not None and terrain_profiles.shape[0] == n_receptors:
             tca_correction = self._calculate_tca_correction_vectorized(
@@ -230,22 +254,56 @@ class ITUR_P1546Model:
             tca_correction = self.xp.zeros(n_receptors, dtype=float)
             self.logger.debug("TCA: sin terrain_profiles, usando 0 dB")
         
-        # === PASO 4: Aplicar correcciones ===
-        
-        # 4a. Clutter correction realista (FASE 4 - basada en morphology ITU)
-        clutter_correction = self._calculate_clutter_correction_vectorized(
-            terrain_profiles=terrain_profiles,
-            profile_distances=profile_distances,
-            distances_km=distances_km,
-            rx_height=mobile_height,
-            environment=environment,
-            frequency=frequency
-        )
-        
-        # 4b. Terminal clearance: no aplicado (cubierto por TCA §4.5)
+        # === PASO 4: Correción por clutter (seleccionable) ===
+        clutter_model_key = str(clutter_model).strip().lower()
+
+        if clutter_model_key == 'itu_annex5':
+            # P.1546-6 Annex 5 §10 — correción clutter TX (Step 15)
+            # §9 (h2_correction) ya aplica la correción RX; §10 corrige el TX.
+            clutter_correction = self._calculate_tx_clutter_correction(
+                tx_height=tx_height,
+                environment=environment,
+                frequency=frequency,
+                n_receptors=n_receptors,
+                tx_clutter_height_m=tx_clutter_height_m,
+            )
+            self.logger.debug(f"Clutter: ITU Annex5 §10 (TX clutter), "
+                              f"mean={float(self.xp.mean(clutter_correction)):.2f} dB")
+        else:
+            # 'p2108' (default): ITU-R P.2108-1 §3 (correc. entorno RX)
+            clutter_correction = self._calculate_clutter_correction_vectorized(
+                terrain_profiles=terrain_profiles,
+                profile_distances=profile_distances,
+                distances_km=distances_km,
+                rx_height=mobile_height,
+                environment=environment,
+                frequency=frequency
+            )
+
+        # Terminal clearance: no aplicado (cubierto por TCA §4.5)
         terminal_clearance = None
 
-        # 4c. Percentile correction — P.1546-6 §8.1 (tablas ITU Annex 5)
+        # === PASO 4b: Piso troposférico §13 (Annex 5, Step 13) ===
+        # E = max(E_after_TCA, Ets); equivalente en dominio PL: trop_correction ≤ 0
+        Ets = self._calculate_troposcatter_field_strength(
+            distances_km=distances_km,
+            frequency=frequency,
+            time_percentage=time_percentage,
+            tx_height=tx_height,
+            mobile_height=mobile_height,
+        )
+        E_after_tca = E_field - tca_correction  # tca_correction es PL domain (+PL = -E)
+        trop_boost_E = self.xp.maximum(Ets - E_after_tca, 0.0)
+        trop_correction = -trop_boost_E  # PL domain: ≤ 0 (reduce pérdida cuando troposc. domina)
+
+        # === PASO 4c: Corrección trayecto en pendiente §14 (Annex 5, Step 16) ===
+        slope_correction = self._calculate_slope_path_correction(
+            tx_height=tx_height,
+            mobile_height=mobile_height,
+            distances_km=distances_km,
+        )
+
+        # 4d. Percentile correction — P.1546-6 §8.1 (tablas ITU Annex 5)
         percentile_correction = self._apply_percentile_correction(
             distances_km=distances_km,
             time_percentage=time_percentage,
@@ -258,10 +316,13 @@ class ITUR_P1546Model:
             E_field=E_field,
             frequency=frequency,
             h_eff=h_eff,
+            h2_correction=h2_correction,
             tca_correction=tca_correction,
             clutter_correction=clutter_correction,
             terminal_clearance=terminal_clearance,
-            percentile_correction=percentile_correction
+            percentile_correction=percentile_correction,
+            trop_correction=trop_correction,
+            slope_correction=slope_correction,
         )
         
         # Remodelar al shape original
@@ -405,6 +466,26 @@ class ITUR_P1546Model:
         return E_field
     
     
+    def _J_function(self, nu: np.ndarray) -> np.ndarray:
+        """
+        Función J(ν) — difracción / corrección de obstáculo.
+
+        Usada en:
+          - TCA §4.5: ν = θ_tc [grados]
+          - h2 correction §9 eq.28a: ν = K_ν·√(h_dif·θ_clut)
+
+        J(ν) = 6.9 + 20·log₁₀(√((ν − 0.1)² + 1) + ν − 0.1)
+
+        Args:
+            nu: argumento (array or scalar, mismo dtype que self.xp)
+        Returns:
+            Array con J(ν) [dB]
+        """
+        xp = self.xp
+        t = nu - 0.1
+        return 6.9 + 20.0 * xp.log10(xp.maximum(xp.sqrt(t * t + 1.0) + t, 1e-6))
+
+
     def _calculate_tca_correction_vectorized(self,
                                             terrain_profiles: np.ndarray,
                                             distances_km: np.ndarray,
@@ -489,10 +570,7 @@ class ITUR_P1546Model:
         theta_tc = xp.maximum(theta_tc, 0.0)  # solo corrección cuando hay obstáculo
 
         # J(θ_tc) — función de corrección definida en P.1546-6 §4.5; θ_tc en grados
-        t = theta_tc - 0.1
-        J_theta = 6.9 + 20.0 * xp.log10(
-            xp.maximum(xp.sqrt(t * t + 1.0) + t, 1e-6)
-        )
+        J_theta = self._J_function(theta_tc)
         tca_db = xp.where(theta_tc > 0.0, J_theta, 0.0)
 
         self.logger.debug(
@@ -503,6 +581,317 @@ class ITUR_P1546Model:
         return tca_db
     
     
+    def _calculate_h2_receiver_correction_vectorized(self,
+                                                     h2: float,
+                                                     h1: np.ndarray,
+                                                     distances_km: np.ndarray,
+                                                     environment: str,
+                                                     frequency: float,
+                                                     rx_clutter_height_m: Optional[float] = None) -> np.ndarray:
+        """
+        Corrección por altura de la antena receptora h2 — P.1546-6 §9 (Annex 5).
+
+        Implementa Step 14 de P1546FieldStrMixed.m (función Step_14a), asumiendo
+        siempre trayecto sobre tierra (Land path).
+
+        Las fórmulas son (§9, ecuaciones 27–29):
+          K_h2 = 3.2 + 6.2·log₁₀(f_MHz)
+          Rp   = (1000·d·R2 − 15·h1) / (1000·d − 15)   [Urban/Suburban]
+          Rp   = 10                                        [Rural]
+
+          Urban/Suburban, h2 < Rp  (eq. 28a):
+            h_dif = Rp − h2
+            K_ν   = 0.0108·√f
+            θ_clut = arctan(h_dif / 27)  [grados]
+            ν  = K_ν·√(h_dif·θ_clut)
+            Correction_E = 6.03 − J(ν)
+
+          Urban/Suburban/Rural, h2 ≥ Rp  (eq. 28b):
+            Correction_E = K_h2·log₁₀(h2 / Rp)
+
+          Si Rp < 10 en Urban/Suburban:
+            Correction_E −= K_h2·log₁₀(10 / Rp)
+
+        NOTA: Correction_E es negativa cuando h2 < Rp (la antena está por debajo
+        del clutter representativo), lo que aumenta la pérdida de trayecto.
+        Este método retorna la corrección en dominio PL: PL_correction = −Correction_E.
+
+        Args:
+            h2: Altura receptor AGL [m] (= mobile_height). Se fuerza a ≥ 1 m.
+            h1: Array (n_receptors,) con h_eff [m] de cada trayecto.
+            distances_km: Array (n_receptors,) con distancias TX→RX [km].
+            environment: 'Urban' | 'Suburban' | 'Rural' (case-insensitive).
+            frequency: Frecuencia en MHz.
+
+        Returns:
+            np.ndarray (n_receptors,): corrección de path loss [dB] ≥ 0 implica
+            aumento de pérdida; puede ser negativo cuando h2 > Rp.
+        """
+        xp = self.xp
+        n = len(distances_km)
+
+        # Altura mínima: 1 m (límite del estándar para trayecto terrestre)
+        h2_eff = max(float(h2), 1.0)
+        if h2_eff != float(h2):
+            self.logger.warning(
+                f"h2={h2:.2f} m < 1 m: forzado a 1 m (límite P.1546-6 §9 para Land)"
+            )
+
+        # R2 representativa por entorno (o explícita del perfil)
+        env_lower = environment.strip().lower()
+        if rx_clutter_height_m is not None:
+            R2 = max(float(rx_clutter_height_m), 1.0)
+        else:
+            R2_MAP = {
+                'rural': 10.0,
+                'suburban': 10.0,
+                'urban': 15.0,
+                'dense urban': 20.0,
+            }
+            R2 = R2_MAP.get(env_lower, 10.0)
+
+        # K_h2 (frecuencia-dependiente)
+        K_h2 = 3.2 + 6.2 * np.log10(max(frequency, 1.0))
+
+        # Distancia segura para evitar div/0 en Rp (d_km >= 1 ya garantizado por el pipeline)
+        d_km = xp.maximum(distances_km, 1.0)
+
+        # Calcular corrección E por receptor
+        correction_E = xp.zeros(n, dtype=float)
+
+        if env_lower in ('urban', 'dense urban', 'suburban'):
+            # Rp vectorizado (puede variar por receptor si h1 varía)
+            h1_arr = xp.asarray(h1, dtype=float)
+            Rp = (1000.0 * d_km * R2 - 15.0 * h1_arr) / (1000.0 * d_km - 15.0)
+            Rp = xp.maximum(Rp, 1.0)  # límite inferior 1 m
+
+            K_nu = 0.0108 * np.sqrt(max(frequency, 1.0))
+
+            for i in range(n):
+                rp_i = float(Rp[i])
+                if h2_eff < rp_i:
+                    # eq. 28a
+                    h_dif = rp_i - h2_eff
+                    theta_clut = np.degrees(np.arctan(h_dif / 27.0))
+                    nu = K_nu * np.sqrt(h_dif * theta_clut)
+                    corr_i = 6.03 - float(self._J_function(xp.array([nu]))[0])
+                else:
+                    # eq. 28b
+                    corr_i = K_h2 * np.log10(h2_eff / rp_i)
+                # Reducción adicional cuando Rp < 10
+                if rp_i < 10.0:
+                    corr_i -= K_h2 * np.log10(10.0 / rp_i)
+                correction_E[i] = corr_i
+
+        else:
+            # Rural / Open: Rp = 10 siempre, eq. 28b directamente (vectorizado)
+            correction_E = xp.full(n, K_h2 * np.log10(h2_eff / 10.0), dtype=float)
+
+        # Dominio PL: PL_correction = −Correction_E
+        # (Correction_E negativa → pérdida positiva → se suma al path loss)
+        pl_correction = -correction_E
+
+        self.logger.debug(
+            f"h2 §9: h2={h2_eff:.1f}m, R2={R2:.0f}m, env={env_lower}, f={frequency:.0f}MHz, "
+            f"K_h2={K_h2:.3f}, "
+            f"h2_corr PL: mean={float(xp.mean(pl_correction)):.2f} dB, "
+            f"range=[{float(xp.min(pl_correction)):.2f},{float(xp.max(pl_correction)):.2f}] dB"
+        )
+        return pl_correction
+
+
+    def _calculate_tx_clutter_correction(self,
+                                         tx_height: float,
+                                         environment: str,
+                                         frequency: float,
+                                         n_receptors: int,
+                                         tx_clutter_height_m: Optional[float] = None) -> np.ndarray:
+        """
+        Corrección por clutter alrededor de la antena transmisora (TX) — P.1546-6 §10 (Annex 5).
+
+        Implementa Step 15 de P1546FieldStrMixed.m (función Step_15a).
+        Se aplica siempre que la antena TX no esté en terreno despejado, incluso
+        si su altura supera la del clutter representativo.
+
+        Fórmula (§10, ecuación 30):
+          K_ν   = 0.0108 · √f
+          h_dif = ha − R1          (positivo si antena sobre clutter, negativo si debajo)
+          θ_clut = arctan(h_dif / 27)   [grados]
+
+          Si ha ≥ R1:  ν = −K_ν · √(h_dif · θ_clut)   [compensación, nu negativo]
+          Si ha < R1:  ν = +K_ν · √(|h_dif| · |θ_clut|) [obstrucción, nu positivo]
+
+          Si ν > −0.7806:  Correction_E = −J(ν)
+          Si ν ≤ −0.7806:  Correction_E = 0
+
+        NOTA: Correction_E es negativa cuando la antena TX está sobre el clutter
+        (ν positivo → J(ν) positiva), reduciendo E → aumentando PL.
+        Este método retorna la corrección en dominio PL: PL_correction = −Correction_E.
+
+        R1 por entorno (valores por defecto P.1546-6):
+          Rural / Suburban → 10 m
+          Urban            → 20 m
+          Dense Urban      → 30 m
+
+        Args:
+            tx_height: Altura antena TX AGL [m] (ha)
+            environment: 'Urban' | 'Suburban' | 'Rural' (case-insensitive)
+            frequency: Frecuencia en MHz
+            n_receptors: Número de receptores (misma corrección para todos)
+            tx_clutter_height_m: R1 explícito [m]; None = derivar del entorno
+
+        Returns:
+            np.ndarray (n_receptors,): corrección de path loss [dB].
+            Valor positivo → aumenta pérdida (TX dentro/bajo el clutter).
+            Valor cero → TX sobre el clutter (sin corrección).
+        """
+        xp = self.xp
+
+        # R1: altura representativa clutter TX
+        if tx_clutter_height_m is not None:
+            R1 = max(float(tx_clutter_height_m), 1.0)
+        else:
+            R1_MAP = {
+                'rural': 10.0,
+                'suburban': 10.0,
+                'urban': 20.0,
+                'dense urban': 30.0,
+            }
+            R1 = R1_MAP.get(environment.strip().lower(), 10.0)
+
+        ha = float(tx_height)
+        K_nu = 0.0108 * np.sqrt(max(frequency, 1.0))
+        h_dif = ha - R1
+        theta_clut = np.degrees(np.arctan(h_dif / 27.0))
+
+        if ha >= R1:
+            nu = -K_nu * np.sqrt(abs(h_dif) * abs(theta_clut))  # clearance → negative → 0 correction
+        else:
+            nu = K_nu * np.sqrt(abs(h_dif) * abs(theta_clut))   # obstruction → positive → loss
+
+        # Umbral: si ν ≤ −0.7806, corrección nula (§10)
+        if nu <= -0.7806:
+            correction_E = 0.0
+        else:
+            correction_E = -float(self._J_function(xp.array([nu]))[0])
+
+        # Dominio PL: PL_correction = −Correction_E
+        pl_correction = -correction_E
+
+        self.logger.debug(
+            f"TX Clutter §10: ha={ha:.1f}m, R1={R1:.0f}m, env={environment}, "
+            f"h_dif={h_dif:.1f}m, nu={nu:.4f}, "
+            f"Correction_E={correction_E:.3f} dB → PL={pl_correction:.3f} dB"
+        )
+        return xp.full(n_receptors, pl_correction, dtype=float)
+
+
+    def _calculate_troposcatter_field_strength(self,
+                                               distances_km: np.ndarray,
+                                               frequency: float,
+                                               time_percentage: float,
+                                               tx_height: float,
+                                               mobile_height: float) -> np.ndarray:
+        """
+        Intensidad de campo por dispersión troposférica — P.1546-6 §13 (Annex 5, Step 13).
+
+        Implementa Step_13a de P1546FieldStrMixed.m.
+        El campo troposférico Ets es un piso mínimo: E = max(E_after_TCA, Ets).
+
+        Ecuaciones (§13):
+          eff1 = −arctan(h_tx / min(d_m, 15000)) · 180/π   [°, TX clearance angle]
+          eff2 = −arctan(h_rx / min(d_m, 16000)) · 180/π   [°, RX clearance angle]
+          θ_s  = max(0,  180·d_km / (π·⁴⁄₃·6370) + eff1 + eff2)   [°, eq. 35]
+          Ets  = 24.4 − 20·log₁₀(d_km) − 10·θ_s
+                 − (5·log₁₀(f) − 2.5·(log₁₀(f) − 3.3)²)
+                 + 0.15·325
+                 + 10.1·(−log₁₀(0.02·t))^0.7          [dBμV/m, eq. 36]
+
+        Args:
+            distances_km: Distancias TX→RX en km (n_receptors,)
+            frequency: Frecuencia en MHz
+            time_percentage: Percentil de tiempo t [1–99]
+            tx_height: Altura antena TX AGL [m]
+            mobile_height: Altura receptora AGL [m]
+
+        Returns:
+            np.ndarray (n_receptors,): Ets [dBμV/m] — piso de campo troposférico
+        """
+        xp = self.xp
+
+        # Distancias en metros
+        d_m = distances_km * 1000.0
+
+        # Ángulos de clearance TX y RX (grados, negativos = antena sobre horizonte)
+        d_eff1_m = xp.minimum(d_m, 15000.0)
+        eff1 = -xp.degrees(xp.arctan(float(tx_height) / xp.maximum(d_eff1_m, 1.0)))
+
+        d_eff2_m = xp.minimum(d_m, 16000.0)
+        eff2 = -xp.degrees(xp.arctan(float(mobile_height) / xp.maximum(d_eff2_m, 1.0)))
+
+        # Ángulo de dispersión θ_s (eq. 35)
+        theta_s = (180.0 * distances_km) / (np.pi * (4.0 / 3.0) * 6370.0) + eff1 + eff2
+        theta_s = xp.maximum(theta_s, 0.0)
+
+        # Término de frecuencia (§13 eq. 36)
+        log_f = np.log10(max(float(frequency), 1.0))
+        freq_term = 5.0 * log_f - 2.5 * (log_f - 3.3) ** 2
+
+        # Término de tiempo (t = time_percentage)
+        t = max(float(time_percentage), 0.01)
+        inner = max(-np.log10(0.02 * t), 0.0)
+        t_term = 10.1 * (inner ** 0.7)
+
+        # Campo troposférico Ets (eq. 36); 0.15·325 = 48.75
+        Ets = (24.4
+               - 20.0 * xp.log10(xp.maximum(distances_km, 0.001))
+               - 10.0 * theta_s
+               - freq_term
+               + 48.75
+               + t_term)
+
+        self.logger.debug(
+            f"Troposcatter §13: f={frequency:.0f} MHz, t={t:.0f}%, "
+            f"Ets=[{float(xp.min(Ets)):.2f},{float(xp.max(Ets)):.2f}] dBμV/m, "
+            f"theta_s=[{float(xp.min(theta_s)):.3f},{float(xp.max(theta_s)):.3f}]°"
+        )
+        return Ets
+
+
+    def _calculate_slope_path_correction(self,
+                                         tx_height: float,
+                                         mobile_height: float,
+                                         distances_km: np.ndarray) -> np.ndarray:
+        """
+        Corrección de trayecto en pendiente — P.1546-6 §14 (Annex 5, Step 16).
+
+        Implementa Step_16a de P1546FieldStrMixed.m.
+
+        La longitud real del trayecto inclinado es:
+          d_slope = sqrt(d_km² + (Δh)² · 1e-6)   [km, con Δh en m]
+
+        Corrección en dominio PL:
+          correction_PL = 20·log₁₀(d_slope / d_km)  ≥ 0
+
+        Args:
+            tx_height: Altura antena TX AGL [m]
+            mobile_height: Altura receptora AGL [m]
+            distances_km: Distancias TX→RX en km (n_receptors,)
+
+        Returns:
+            np.ndarray (n_receptors,): corrección en dB ≥ 0 (típicamente < 0.01 dB en terreno plano)
+        """
+        xp = self.xp
+        delta_h_km = (float(tx_height) - float(mobile_height)) * 1e-3   # m → km
+        d_slope = xp.sqrt(distances_km ** 2 + delta_h_km ** 2)
+        correction_PL = 20.0 * xp.log10(xp.maximum(d_slope / xp.maximum(distances_km, 0.001), 1.0))
+        self.logger.debug(
+            f"Slope-path §14: Δh={(float(tx_height) - float(mobile_height)):.1f}m, "
+            f"correction=[{float(xp.min(correction_PL)):.4f},{float(xp.max(correction_PL)):.4f}] dB"
+        )
+        return correction_PL
+
+
     def _calculate_clutter_correction_vectorized(self,
                                                 terrain_profiles: Optional[np.ndarray] = None,
                                                 profile_distances: Optional[np.ndarray] = None,
@@ -619,15 +1008,19 @@ class ITUR_P1546Model:
                                    h_eff: np.ndarray,
                                    tca_correction: np.ndarray,
                                    clutter_correction: np.ndarray,
+                                   h2_correction: Optional[np.ndarray] = None,
                                    terminal_clearance: Optional[np.ndarray] = None,
-                                   percentile_correction: Optional[np.ndarray] = None) -> np.ndarray:
+                                   percentile_correction: Optional[np.ndarray] = None,
+                                   trop_correction: Optional[np.ndarray] = None,
+                                   slope_correction: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Convierte E[dBμV/m] a Path Loss [dB] — P.1546-6 §5.
 
-        PL = 139.3 + 20·log₁₀(f_MHz) − E + TCA + clutter + percentile
+        PL = 139.3 + 20·log₁₀(f_MHz) − E + TCA + trop + slope + h2 + clutter + percentile
 
         donde 139.3 = 20·log₁₀(10⁷) es la constante de conversión ITU.
-        Todas las correcciones son aditivas y positivas cuando aumentan la pérdida.
+        Todas las correcciones son aditivas y positivas cuando aumentan la pérdida
+        (trop_correction ≤ 0 cuando el piso troposférico domina).
 
         Args:
             E_field: E[dBμV/m] desde tablas (n_receptors,)
@@ -637,6 +1030,8 @@ class ITUR_P1546Model:
             clutter_correction: Pérdida por clutter P.2108-1 [dB] (n_receptors,)
             terminal_clearance: No usado actualmente (siempre None)
             percentile_correction: Corrección percentil §8.1 [dB] (n_receptors,)
+            trop_correction: Corrección troposférica §13 [dB] ≤ 0 (n_receptors,)
+            slope_correction: Corrección trayecto en pendiente §14 [dB] ≥ 0 (n_receptors,)
 
         Returns:
             np.ndarray: Path loss [dB] (n_receptors,)
@@ -648,15 +1043,30 @@ class ITUR_P1546Model:
         path_loss = 139.3 + freq_term - E_field
         
         # Aplicar correcciones (todas aumentan path loss si son positivas)
+        if h2_correction is not None:
+            path_loss = path_loss + h2_correction
         path_loss = path_loss + tca_correction + clutter_correction
         
         if terminal_clearance is not None:
             path_loss = path_loss + terminal_clearance
         
+        if trop_correction is not None:
+            path_loss = path_loss + trop_correction
+        
+        if slope_correction is not None:
+            path_loss = path_loss + slope_correction
+        
         if percentile_correction is not None:
             path_loss = path_loss + percentile_correction
         
         self.logger.debug(
+            f"PL [{frequency} MHz]: base={139.3 + freq_term:.2f} dB, "
+            f"E=[{float(E_field.min()):.1f},{float(E_field.max()):.1f}] dBμV/m, "
+            f"h2_corr=[{float(h2_correction.min()):.2f},{float(h2_correction.max()):.2f}] dB, "
+            f"TCA=[{float(tca_correction.min()):.2f},{float(tca_correction.max()):.2f}] dB, "
+            f"clutter=[{float(clutter_correction.min()):.2f},{float(clutter_correction.max()):.2f}] dB, "
+            f"PL=[{float(path_loss.min()):.1f},{float(path_loss.max()):.1f}] dB"
+        ) if h2_correction is not None else self.logger.debug(
             f"PL [{frequency} MHz]: base={139.3 + freq_term:.2f} dB, "
             f"E=[{float(E_field.min()):.1f},{float(E_field.max()):.1f}] dBμV/m, "
             f"TCA=[{float(tca_correction.min()):.2f},{float(tca_correction.max()):.2f}] dB, "
@@ -680,7 +1090,9 @@ class ITUR_P1546Model:
             'environments': ['Urban', 'Suburban', 'Rural'],
             'has_terrain_awareness': True,
             'has_tca_correction': True,      # P.1546-6 §4.5
-            'has_clutter_correction': True,  # ITU-R P.2108-1 §3
+            'has_h2_correction': True,       # P.1546-6 §9 (Annex 5)
+            'has_clutter_correction': True,  # 'p2108': P.2108-1 §3 | 'itu_annex5': §10
+            'clutter_models_available': ['p2108', 'itu_annex5'],
             'cpu_gpu_support': True,
             # P.1546 es modelo punto-área estadístico; NO tiene estados LOS/NLOS
             'has_los_nlos': False,

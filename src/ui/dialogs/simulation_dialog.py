@@ -215,6 +215,17 @@ class SimulationDialog(QDialog):
         self.itu_p1546_terrain_combo.setCurrentIndex(1)
         itu_p1546_layout.addRow("Terreno:", self.itu_p1546_terrain_combo)
 
+        # Modelo de clutter
+        self.itu_p1546_clutter_combo = QComboBox()
+        self.itu_p1546_clutter_combo.addItem("P.2108-1 (modelo moderno, recomendado)", "p2108")
+        self.itu_p1546_clutter_combo.addItem("ITU-R P.1546 Annex 5 §10 (estándar original)", "itu_annex5")
+        self.itu_p1546_clutter_combo.setCurrentIndex(0)  # p2108 por defecto
+        self.itu_p1546_clutter_combo.setToolTip(
+            "P.2108-1: correc. entorno receptor (moderno, freq-dependiente).\n"
+            "Annex 5 §10: correc. clutter transmisor (estándar P.1546 original)."
+        )
+        itu_p1546_layout.addRow("Modelo clutter:", self.itu_p1546_clutter_combo)
+
         # Nota informativa
         itu_p1546_note = QLabel("<small><i>Modelo point-to-area para cobertura. "
                                 "Frecuencias 30-4000 MHz, distancias 1-1000 km. "
@@ -435,6 +446,7 @@ class SimulationDialog(QDialog):
         if self.model_combo.currentData() == 'itu_p1546':
             config['environment'] = self.itu_p1546_environment_combo.currentData()
             config['terrain_type'] = self.itu_p1546_terrain_combo.currentData()
+            config['clutter_model'] = self.itu_p1546_clutter_combo.currentData()
 
         # Agregar parámetros de 3GPP TR 38.901 si está seleccionado
         if self.model_combo.currentData() == 'three_gpp_38901':
