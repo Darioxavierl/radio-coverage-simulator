@@ -1,0 +1,56 @@
+{
+  "simulation_info": {
+    "timestamp": "2026-06-09T23:14:37.466669",
+    "software": "RF Coverage Tool v1.0",
+    "export_timestamp": "2026-06-09T23:15:04.257831"
+  },
+  "compute_performance": {
+    "gpu_used": true,
+    "gpu_device": "GPU: NVIDIA GeForce GTX 1660 SUPER (CC 7.5)",
+    "total_execution_time_seconds": 12.65,
+    "antenna_times_seconds": {
+      "94fda027-a5c4-46bc-a0db-69e6471c8ba3": 12.467
+    },
+    "terrain_loading_time_seconds": 0.173,
+    "antenna_total_times_seconds": {
+      "94fda027-a5c4-46bc-a0db-69e6471c8ba3": 12.467
+    },
+    "antenna_coverage_times_seconds": {
+      "94fda027-a5c4-46bc-a0db-69e6471c8ba3": 7.574
+    },
+    "antenna_render_times_seconds": {
+      "94fda027-a5c4-46bc-a0db-69e6471c8ba3": 0.377
+    },
+    "multi_antenna_aggregation_time_seconds": 0.004
+  },
+  "grid_parameters": {
+    "radius_km": 8,
+    "resolution": 300,
+    "total_grid_points": 90000
+  },
+  "propagation_model": {
+    "model_name": "itu_p1546",
+    "parameters": {
+      "environment": "Rural",
+      "terrain_type": "mixed"
+    }
+  },
+  "data_description": {
+    "num_antennas": 1,
+    "num_grid_points_per_antenna": 90000,
+    "fields": [
+      "antenna_id",
+      "frequency_mhz",
+      "tx_power_dbm",
+      "tx_height_m",
+      "grid_lat",
+      "grid_lon",
+      "rsrp_dbm",
+      "path_loss_db",
+      "antenna_gain_dbi",
+      "model_used",
+      "environment",
+      "terrain_type"
+    ]
+  }
+}
