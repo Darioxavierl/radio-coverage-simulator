@@ -1,0 +1,111 @@
+2026-06-10 21:42:03,940  INFO     ======================================================================
+2026-06-10 21:42:03,941  INFO     COMPARACION RF Tool (Python) vs MATLAB 3GPP TR 38.901  [Escenario A6]
+2026-06-10 21:42:03,941  INFO     ======================================================================
+2026-06-10 21:42:03,941  INFO     Python CSV  : G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:42:03,941  INFO     MATLAB CSV  : G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:42:03,942  INFO     Output      : G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:42:03,942  INFO     Tolerancia  : 25.0 m
+2026-06-10 21:42:03,944  INFO     Cargando CSV Python: G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:42:04,077  INFO       Forma raw: (90000, 13) | Columnas: ['antenna_id', 'frequency_mhz', 'tx_power_dbm', 'tx_height_m', 'grid_lat', 'grid_lon', 'rsrp_dbm', 'path_loss_db', 'antenna_gain_dbi', 'model_used', 'environment', 'terrain_type', 'los_nlos']
+2026-06-10 21:42:04,101  INFO       Puntos únicos de grilla (best-server): 90000
+2026-06-10 21:42:04,103  INFO       RSRP Python: [-120.2, -27.0] dBm
+2026-06-10 21:42:04,104  INFO     Cargando CSV MATLAB: G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:42:04,332  INFO       Forma raw: (90601, 15) | Columnas: ['X_m', 'Y_m', 'Latitud', 'Longitud', 'RSRP_Ant1_dBm', 'RSRP_Ant2_dBm', 'RSRP_Ant3_dBm', 'RSRP_Max_dBm', 'PathLoss_Ant1_dB', 'PathLoss_Ant2_dB', 'PathLoss_Ant3_dB', 'PLOS_Ant1', 'PLOS_Ant2', 'PLOS_Ant3', 'Best_Antenna_ID']
+2026-06-10 21:42:04,359  INFO       Puntos MATLAB: 90601
+2026-06-10 21:42:04,360  INFO       RSRP MATLAB: [-119.8, -16.0] dBm
+2026-06-10 21:42:04,361  INFO       P_LOS media: [0.004, 1.000]
+2026-06-10 21:42:04,361  INFO     Proyectando a UTM 17S...
+2026-06-10 21:42:04,401  INFO     Matcheando grillas (tolerancia=25.0m)...
+2026-06-10 21:42:04,564  INFO       Pares dentro de tolerancia: 90000/90000
+2026-06-10 21:42:04,568  INFO       Distancia match: median=0.0m p95=0.0m
+2026-06-10 21:42:04,578  INFO     Métricas [tolerancia principal]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:04,600  INFO     Métricas [estricto]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:04,601  INFO     Barrido de tolerancias...
+2026-06-10 21:42:04,695  INFO     Métricas [tol=10.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:04,784  INFO     Métricas [tol=15.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:04,875  INFO     Métricas [tol=20.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:04,971  INFO     Métricas [tol=25.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:05,071  INFO     Métricas [tol=30.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:05,169  INFO     Métricas [tol=40.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:05,278  INFO     Métricas [tol=50.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:05,377  INFO     Métricas [tol=75.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:05,487  INFO     Métricas [tol=100.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:42:12,190  INFO     Gráficos guardados en G:\My Drive\Universidad\Tesis\validaciones\resultados\A6 (8 figuras)
+2026-06-10 21:42:14,883  INFO     Resumen guardado: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6\comparison_summary.txt
+2026-06-10 21:42:14,884  INFO     ======================================================================
+2026-06-10 21:42:14,884  INFO     Completado. Resultados en: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:42:14,884  INFO     ======================================================================
+2026-06-10 21:46:36,471  INFO     ======================================================================
+2026-06-10 21:46:36,477  INFO     COMPARACION RF Tool (Python) vs MATLAB 3GPP TR 38.901  [Escenario A6]
+2026-06-10 21:46:36,478  INFO     ======================================================================
+2026-06-10 21:46:36,479  INFO     Python CSV  : G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:46:36,480  INFO     MATLAB CSV  : G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:46:36,481  INFO     Output      : G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:46:36,482  INFO     Tolerancia  : 25.0 m
+2026-06-10 21:46:36,487  INFO     Cargando CSV Python: G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:46:36,705  INFO       Forma raw: (90000, 13) | Columnas: ['antenna_id', 'frequency_mhz', 'tx_power_dbm', 'tx_height_m', 'grid_lat', 'grid_lon', 'rsrp_dbm', 'path_loss_db', 'antenna_gain_dbi', 'model_used', 'environment', 'terrain_type', 'los_nlos']
+2026-06-10 21:46:36,752  INFO       Puntos únicos de grilla (best-server): 90000
+2026-06-10 21:46:36,754  INFO       RSRP Python: [-120.2, -27.0] dBm
+2026-06-10 21:46:36,756  INFO     Cargando CSV MATLAB: G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:46:37,171  INFO       Forma raw: (90601, 15) | Columnas: ['X_m', 'Y_m', 'Latitud', 'Longitud', 'RSRP_Ant1_dBm', 'RSRP_Ant2_dBm', 'RSRP_Ant3_dBm', 'RSRP_Max_dBm', 'PathLoss_Ant1_dB', 'PathLoss_Ant2_dB', 'PathLoss_Ant3_dB', 'PLOS_Ant1', 'PLOS_Ant2', 'PLOS_Ant3', 'Best_Antenna_ID']
+2026-06-10 21:46:37,217  INFO       Puntos MATLAB: 90601
+2026-06-10 21:46:37,243  INFO       RSRP MATLAB: [-119.8, -16.0] dBm
+2026-06-10 21:46:37,247  INFO       P_LOS media: [0.004, 1.000]
+2026-06-10 21:46:37,249  INFO     Proyectando a UTM 17S...
+2026-06-10 21:46:37,420  INFO     Matcheando grillas (tolerancia=25.0m)...
+2026-06-10 21:46:37,700  INFO       Pares dentro de tolerancia: 90000/90000
+2026-06-10 21:46:37,757  INFO       Distancia match: median=0.0m p95=0.0m
+2026-06-10 21:46:37,801  INFO     Métricas [tolerancia principal]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:37,836  INFO     Métricas [estricto]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:37,837  INFO     Barrido de tolerancias...
+2026-06-10 21:46:37,996  INFO     Métricas [tol=10.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,139  INFO     Métricas [tol=15.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,277  INFO     Métricas [tol=20.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,412  INFO     Métricas [tol=25.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,548  INFO     Métricas [tol=30.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,684  INFO     Métricas [tol=40.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,823  INFO     Métricas [tol=50.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:38,959  INFO     Métricas [tol=75.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:39,089  INFO     Métricas [tol=100.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:46:49,298  INFO     Gráficos guardados en G:\My Drive\Universidad\Tesis\validaciones\resultados\A6 (10 figuras)
+2026-06-10 21:46:55,298  INFO     Resumen guardado: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6\comparison_summary.txt
+2026-06-10 21:46:55,300  INFO     ======================================================================
+2026-06-10 21:46:55,301  INFO     Completado. Resultados en: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:46:55,301  INFO     ======================================================================
+2026-06-10 21:49:38,453  INFO     ======================================================================
+2026-06-10 21:49:38,455  INFO     COMPARACION RF Tool (Python) vs MATLAB 3GPP TR 38.901  [Escenario A6]
+2026-06-10 21:49:38,456  INFO     ======================================================================
+2026-06-10 21:49:38,456  INFO     Python CSV  : G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:49:38,456  INFO     MATLAB CSV  : G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:49:38,457  INFO     Output      : G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:49:38,457  INFO     Tolerancia  : 25.0 m
+2026-06-10 21:49:38,459  INFO     Cargando CSV Python: G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+2026-06-10 21:49:38,606  INFO       Forma raw: (90000, 13) | Columnas: ['antenna_id', 'frequency_mhz', 'tx_power_dbm', 'tx_height_m', 'grid_lat', 'grid_lon', 'rsrp_dbm', 'path_loss_db', 'antenna_gain_dbi', 'model_used', 'environment', 'terrain_type', 'los_nlos']
+2026-06-10 21:49:38,625  INFO       Puntos únicos de grilla (best-server): 90000
+2026-06-10 21:49:38,625  INFO       RSRP Python: [-120.2, -27.0] dBm
+2026-06-10 21:49:38,627  INFO     Cargando CSV MATLAB: G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+2026-06-10 21:49:38,875  INFO       Forma raw: (90601, 15) | Columnas: ['X_m', 'Y_m', 'Latitud', 'Longitud', 'RSRP_Ant1_dBm', 'RSRP_Ant2_dBm', 'RSRP_Ant3_dBm', 'RSRP_Max_dBm', 'PathLoss_Ant1_dB', 'PathLoss_Ant2_dB', 'PathLoss_Ant3_dB', 'PLOS_Ant1', 'PLOS_Ant2', 'PLOS_Ant3', 'Best_Antenna_ID']
+2026-06-10 21:49:38,903  INFO       Puntos MATLAB: 90601
+2026-06-10 21:49:38,903  INFO       RSRP MATLAB: [-119.8, -16.0] dBm
+2026-06-10 21:49:38,904  INFO       P_LOS media: [0.004, 1.000]
+2026-06-10 21:49:38,904  INFO     Proyectando a UTM 17S...
+2026-06-10 21:49:38,956  INFO     Matcheando grillas (tolerancia=25.0m)...
+2026-06-10 21:49:39,132  INFO       Pares dentro de tolerancia: 90000/90000
+2026-06-10 21:49:39,136  INFO       Distancia match: median=0.0m p95=0.0m
+2026-06-10 21:49:39,147  INFO     Métricas [tolerancia principal]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,180  INFO     Métricas [estricto]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,180  INFO     Barrido de tolerancias...
+2026-06-10 21:49:39,275  INFO     Métricas [tol=10.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,370  INFO     Métricas [tol=15.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,487  INFO     Métricas [tol=20.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,593  INFO     Métricas [tol=25.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,683  INFO     Métricas [tol=30.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,779  INFO     Métricas [tol=40.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,873  INFO     Métricas [tol=50.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:39,967  INFO     Métricas [tol=75.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:40,060  INFO     Métricas [tol=100.0m]: RMSE=2.13 dB | Bias=-0.51 dB | MAE=1.12 dB | r=0.9760 | N=90000
+2026-06-10 21:49:46,892  INFO     Gráficos guardados en G:\My Drive\Universidad\Tesis\validaciones\resultados\A6 (10 figuras)
+2026-06-10 21:49:51,508  INFO     Resumen guardado: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6\comparison_summary.txt
+2026-06-10 21:49:51,509  INFO     ======================================================================
+2026-06-10 21:49:51,509  INFO     Completado. Resultados en: G:\My Drive\Universidad\Tesis\validaciones\resultados\A6
+2026-06-10 21:49:51,509  INFO     ======================================================================

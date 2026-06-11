@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-06-10T21:49:51.488838",
+  "input_files": {
+    "py_csv": "G:\\My Drive\\Universidad\\Tesis\\data\\exports\\validacion\\A6.csv",
+    "matlab_csv": "G:\\My Drive\\Universidad\\Tesis\\matlab\\simulacion_compara_3gpp.csv"
+  },
+  "config": {
+    "tolerance_m": 25.0,
+    "strict_dist_m": 15.0,
+    "work_crs": "EPSG:4326",
+    "tolerance_sweep": [
+      10.0,
+      15.0,
+      20.0,
+      25.0,
+      30.0,
+      40.0,
+      50.0,
+      75.0,
+      100.0
+    ]
+  },
+  "match_quality": {
+    "py_points": 90000,
+    "mat_points": 90601,
+    "matched_pairs": 90000,
+    "match_rate": 1.0
+  },
+  "metrics": {
+    "n_matched": 90000,
+    "rmse_db": 2.134727532676821,
+    "mae_db": 1.120579141427189,
+    "bias_db": -0.5071047035963053,
+    "pearson_r": 0.9760350661022233,
+    "pearson_pvalue": 0.0,
+    "regression_slope": 0.9383851766297869,
+    "regression_intercept": -6.923127403443653,
+    "error_p50_db": 0.6264559070169966,
+    "error_p90_db": 2.470998256902886,
+    "error_p95_db": 3.475479558140471,
+    "match_dist_median_m": 8.385912588518288e-05,
+    "match_dist_p95_m": 0.00012119083364573901
+  },
+  "strict_metrics": {
+    "n_matched": 90000,
+    "rmse_db": 2.134727532676821,
+    "mae_db": 1.120579141427189,
+    "bias_db": -0.5071047035963053,
+    "pearson_r": 0.9760350661022233,
+    "pearson_pvalue": 0.0,
+    "regression_slope": 0.9383851766297869,
+    "regression_intercept": -6.923127403443653,
+    "error_p50_db": 0.6264559070169966,
+    "error_p90_db": 2.470998256902886,
+    "error_p95_db": 3.475479558140471,
+    "match_dist_median_m": 8.385912588518288e-05,
+    "match_dist_p95_m": 0.00012119083364573901
+  },
+  "tolerance_sweep": [
+    {
+      "tolerance_m": 10.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 15.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 20.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 25.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 30.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 40.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 50.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 75.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    },
+    {
+      "tolerance_m": 100.0,
+      "n_matched": 90000,
+      "rmse_db": 2.134727532676821,
+      "mae_db": 1.120579141427189,
+      "bias_db": -0.5071047035963053,
+      "pearson_r": 0.9760350661022233
+    }
+  ]
+}

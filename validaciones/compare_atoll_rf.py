@@ -643,8 +643,28 @@ def generate_plots(
     ax.grid(axis='x', alpha=0.3)
     fig.savefig(output_dir / "metrics_summary_bar.png", dpi=180, bbox_inches='tight')
     plt.close(fig)
+
+    # --- Gráfico 9: Gauge / barra Pearson r ---
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.barh(["Pearson r"], [1.0], color="#e5e7eb", edgecolor="black", linewidth=1.2, height=0.45)
+    gauge_color = "#16a34a" if pearson_r >= 0.85 else ("#eab308" if pearson_r >= 0.70 else "#dc2626")
+    ax.barh(["Pearson r"], [max(pearson_r, 0.0)], color=gauge_color, alpha=0.85,
+            edgecolor="black", linewidth=1.2, height=0.45)
+    ax.axvline(0.85, color="#0f172a", linestyle="--", lw=1.8, label="Umbral ≥ 0.85")
+    ax.text(max(pearson_r, 0.0) / 2, 0, f"r = {pearson_r:.4f}",
+            va="center", ha="center", fontsize=16, fontweight="bold",
+            color="white" if pearson_r >= 0.3 else "black")
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Coeficiente de Pearson", fontsize=11)
+    status_r = "PASS" if pearson_r >= 0.85 else "FAIL"
+    #ax.set_title(f"Correlación Pearson  —  {status_r}", fontsize=12,
+    #             color="#16a34a" if status_r == "PASS" else "#dc2626", fontweight="bold")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.set_yticks([])
+    fig.savefig(output_dir / "pearson_gauge.png", dpi=180, bbox_inches='tight')
+    plt.close(fig)
     
-    log.info(f"✅ Gráficos guardados en {output_dir} (8 figuras generadas)")
+    log.info(f"✅ Gráficos guardados en {output_dir} (9 figuras generadas)")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

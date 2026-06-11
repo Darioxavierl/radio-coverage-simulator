@@ -1,0 +1,52 @@
+================================================================================
+Comparacion RF Coverage Tool (Python) vs MATLAB 3GPP TR 38.901
+Generado: 2026-06-10 21:49:51
+================================================================================
+
+ARCHIVOS DE ENTRADA:
+  Python CSV : G:\My Drive\Universidad\Tesis\data\exports\validacion\A6.csv
+  MATLAB CSV : G:\My Drive\Universidad\Tesis\matlab\simulacion_compara_3gpp.csv
+
+CALIDAD DEL EMPAREJAMIENTO:
+  Puntos Python (best-server)  : 90000
+  Puntos MATLAB (best-server)  : 90601
+  Pares emparejados            : 90000
+  Tasa de match                : 100.0%
+  Distancia mediana match      : 0.0 m
+  Distancia P95 match          : 0.0 m
+
+METRICAS PRINCIPALES (tolerancia principal):
+  Metrica                           Valor  Criterio              Estado
+  ----------------------------------------------------------------------
+  MAE ≤ 6 dB                       1.1206  MAE ≤ 6 dB            PASS
+  RMSE ≤ 8 dB                      2.1347  RMSE ≤ 8 dB           PASS
+  Bias ∈ [−3, +3] dB              -0.5071  Bias ∈ [−3, +3] dB    PASS
+  Pearson r ≥ 0.85                 0.9760  Pearson r ≥ 0.85      PASS
+
+  RMSE                         : 2.1347 dB
+  MAE                          : 1.1206 dB
+  Bias                         : -0.5071 dB
+  Pearson r                    : 0.9760
+  Error P50                    : 0.6265 dB
+  Error P90                    : 2.4710 dB
+  Error P95                    : 3.4755 dB
+
+VEREDICTO (criterios Plan A6): APROBADO
+
+METRICAS ESTRICTAS (distancia match reducida):
+  N puntos     : 90000
+  RMSE         : 2.1347 dB
+  Bias         : -0.5071 dB
+  Pearson r    : 0.9760
+
+SENSIBILIDAD DE TOLERANCIA:
+  Tolerancia (m)   N pares   RMSE (dB)   Bias (dB)        r
+              10     90000       2.135      -0.507    0.976
+              15     90000       2.135      -0.507    0.976
+              20     90000       2.135      -0.507    0.976
+              25     90000       2.135      -0.507    0.976
+              30     90000       2.135      -0.507    0.976
+              40     90000       2.135      -0.507    0.976
+              50     90000       2.135      -0.507    0.976
+              75     90000       2.135      -0.507    0.976
+             100     90000       2.135      -0.507    0.976
