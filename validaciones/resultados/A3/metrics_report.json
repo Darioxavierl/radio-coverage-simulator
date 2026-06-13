@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-01T21:25:51.520280",
+  "timestamp": "2026-06-13T12:07:01.782166",
   "input_files": {
     "atoll_txt": "G:\\My Drive\\Universidad\\Tesis\\Atoll\\A3.txt",
     "rf_csv": "G:\\My Drive\\Universidad\\Tesis\\data\\exports\\validacion\\A3.csv"
@@ -28,7 +28,7 @@
   },
   "atoll_metadata": {
     "type": "GSM",
-    "timestamp": "02:50:33",
+    "timestamp": "12:04:33",
     "resolution": "23",
     "xmin": "-79.02458269",
     "xmax": "-78.98328462",

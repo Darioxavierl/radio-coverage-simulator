@@ -1,0 +1,148 @@
+{
+  "timestamp": "2026-06-13T13:05:39.251820",
+  "input_files": {
+    "atoll_txt": "G:\\My Drive\\Universidad\\Tesis\\Atoll\\A7-AZ45.txt",
+    "rf_csv": "G:\\My Drive\\Universidad\\Tesis\\data\\exports\\validacion\\A7-AZ45.csv"
+  },
+  "config": {
+    "source_crs": "EPSG:4326",
+    "work_crs": "EPSG:4326",
+    "tolerance_m": 10.0,
+    "strict_distance_m": 20.0,
+    "error_cmap_limit_db": 20.0,
+    "use_mutual_match_filter": true,
+    "tolerance_sweep": [
+      10.0,
+      20.0,
+      30.0,
+      35.0,
+      40.0,
+      50.0
+    ]
+  },
+  "counts": {
+    "atoll_points": 12705,
+    "rf_points": 90000,
+    "matched_points": 12705,
+    "strict_matched_points": 12705
+  },
+  "atoll_metadata": {
+    "type": "GSM",
+    "timestamp": "12:50:36",
+    "resolution": "27",
+    "xmin": "-80.00035823",
+    "xmax": "-77.99968707",
+    "ymin": "-3.004020319",
+    "ymax": "-1.997274615",
+    "x_num_pixels": "8249",
+    "y_num_pixels": "4112"
+  },
+  "match_quality": {
+    "use_mutual_match_filter": true,
+    "candidate_pairs": 12705,
+    "matched_pairs": 12705,
+    "atoll_points_total": 12705,
+    "rf_points_total": 90000,
+    "match_rate_vs_atoll": 1.0
+  },
+  "metrics": {
+    "n_matched": 12705,
+    "rmse_db": 3.928538111214308,
+    "mae_db": 3.3581101928374655,
+    "bias_db": 2.910163321526958,
+    "pearson_r": 0.9473177991141851,
+    "pearson_pvalue": 0.0,
+    "regression_slope": 1.1313129805973983,
+    "regression_intercept": 15.386091524591158,
+    "error_p50_db": 3.1700000000000017,
+    "error_p90_db": 4.492500000000007,
+    "error_p95_db": 5.254499999999994,
+    "error_p99_db": 13.064699999999991,
+    "match_distance_median": 7.882370902236687e-05,
+    "match_distance_p90": 0.00012306731356828845,
+    "match_distance_p95": 0.00013562103990133833,
+    "match_distance_p99": 0.00015585533867808364
+  },
+  "strict_metrics": {
+    "n_matched": 12705,
+    "rmse_db": 3.928538111214308,
+    "mae_db": 3.3581101928374655,
+    "bias_db": 2.910163321526958,
+    "pearson_r": 0.9473177991141851,
+    "pearson_pvalue": 0.0,
+    "regression_slope": 1.1313129805973983,
+    "regression_intercept": 15.386091524591158,
+    "error_p50_db": 3.1700000000000017,
+    "error_p90_db": 4.492500000000007,
+    "error_p95_db": 5.254499999999994,
+    "error_p99_db": 13.064699999999991,
+    "match_distance_median": 7.882370902236687e-05,
+    "match_distance_p90": 0.00012306731356828845,
+    "match_distance_p95": 0.00013562103990133833,
+    "match_distance_p99": 0.00015585533867808364
+  },
+  "cdf_thresholds": {
+    "3.0": 0.33986619441164895,
+    "6.0": 0.9656828020464384,
+    "10.0": 0.9863046044864227,
+    "15.0": 0.992443919716647
+  },
+  "match_reliability": {
+    "match_reliability": "high",
+    "bias_range_db": 0.0,
+    "rmse_range_db": 0.0,
+    "distance_quality_ok": true,
+    "bias_stability_ok": true,
+    "rmse_stability_ok": true
+  },
+  "tolerance_sweep": [
+    {
+      "tolerance_m": 10.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    },
+    {
+      "tolerance_m": 20.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    },
+    {
+      "tolerance_m": 30.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    },
+    {
+      "tolerance_m": 35.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    },
+    {
+      "tolerance_m": 40.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    },
+    {
+      "tolerance_m": 50.0,
+      "n_matched": 12705,
+      "rmse_db": 3.928538111214308,
+      "mae_db": 3.3581101928374655,
+      "bias_db": 2.910163321526958,
+      "pearson_r": 0.9473177991141851
+    }
+  ]
+}
