@@ -21,6 +21,7 @@ Autores: David Montano, Dario Portilla
 Universidad de Cuenca, 2025
 """
 
+import math
 import numpy as np
 import logging
 from typing import Dict, Any, Optional
@@ -150,20 +151,21 @@ class COST231HataModel:
 
         # Máscara de validez combinada
         validity_mask = validity_distance & validity_height
-        valid_count = int(self.xp.sum(validity_mask))
 
-        # Log de receptores fuera de rango
-        if not validity_frequency:
-            self.logger.warning(
-                f"Frequency {frequency}MHz fuera de rango COST-231 Hata (1500-2000 MHz)"
-            )
-
-        n_out_distance = int(self.xp.sum(~validity_distance))
-        n_out_height = int(self.xp.sum(~validity_height))
-        if n_out_distance > 0:
-            self.logger.warning(f"Receptores fuera de rango distancia (0.02-5km): {n_out_distance}")
-        if n_out_height > 0:
-            self.logger.warning(f"Receptores con h_b,eff fuera de rango (30-200m): {n_out_height}")
+        # Log de receptores fuera de rango — guard evita D2H syncs en benchmarks (logger en ERROR)
+        valid_count = None   # se calcula solo si el logger está activo
+        if self.logger.isEnabledFor(logging.WARNING):
+            if not validity_frequency:
+                self.logger.warning(
+                    f"Frequency {frequency}MHz fuera de rango COST-231 Hata (1500-2000 MHz)"
+                )
+            n_out_distance = int(self.xp.sum(~validity_distance))
+            n_out_height   = int(self.xp.sum(~validity_height))
+            if n_out_distance > 0:
+                self.logger.warning(f"Receptores fuera de rango distancia (0.02-5km): {n_out_distance}")
+            if n_out_height > 0:
+                self.logger.warning(f"Receptores con h_b,eff fuera de rango (30-200m): {n_out_height}")
+            valid_count = int(self.xp.sum(validity_mask))
 
         hm = mobile_height
 
@@ -182,12 +184,16 @@ class COST231HataModel:
         # Usar h_b_safe con clamp a 30m para estabilidad numérica (no 1m)
         hb_safe = self.xp.maximum(hb_effective, 30.0)
 
+        # Términos escalares precomputados en Python — 0 GPU ops, sin float64 promotion
+        _log10_f = math.log10(frequency)
+        log10_hb = self.xp.log10(hb_safe)   # 1 kernel (era 2)
+        log10_d  = self.xp.log10(d_km_model)
+
         path_loss_base = (
-            46.3  # COST-231 constante base (diferencia clave vs Okumura-Hata)
-            + 33.9 * self.xp.log10(frequency)  # Coeficiente frecuencia (vs 26.16 en OH)
-            - 13.82 * self.xp.log10(hb_safe)
+            (46.3 + 33.9 * _log10_f)  # COST-231 constante base — escalar puro
+            - 13.82 * log10_hb
             - a_hm
-            + (44.9 - 6.55 * self.xp.log10(hb_safe)) * self.xp.log10(d_km_model)
+            + (44.9 - 6.55 * log10_hb) * log10_d
         )
 
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -208,25 +214,26 @@ class COST231HataModel:
         if environment.lower() == 'suburban':
             # Corrección para ambiente suburbano
             # L_suburban = L_base - 2*[log10(f/28)]^2 - 5.4
-            correction = 2 * (self.xp.log10(frequency / 28.0))**2 + 5.4
+            correction = 2.0 * (math.log10(frequency / 28.0))**2 + 5.4  # escalar puro
             path_loss = path_loss - correction
             self.logger.debug("Applied Suburban correction")
 
         elif environment.lower() == 'rural':
             # Corrección para área rural abierta (open area)
             # L_rural = L_base - 4.78*[log10(f)]^2 + 18.33*log10(f) - 40.94
-            f_term = self.xp.log10(frequency)
-            correction = 4.78 * (f_term**2) - 18.33 * f_term + 40.94
+            f_term = math.log10(frequency)
+            correction = 4.78 * (f_term**2) - 18.33 * f_term + 40.94  # escalar puro
             path_loss = path_loss - correction
             self.logger.debug("Applied Rural correction")
 
         else:  # Urban (default)
             self.logger.debug("Using Urban (standard) model")
 
-        self.logger.info(
-            f"COST-231 Hata: base={path_loss_base.mean():.1f} dB, "
-            f"C_m={Cm} dB, valid={valid_count}/{distances.size}"
-        )
+        if self.logger.isEnabledFor(logging.INFO):
+            self.logger.info(
+                f"COST-231 Hata: base={float(self.xp.mean(path_loss_base)):.1f} dB, "
+                f"C_m={Cm} dB, valid={valid_count}/{distances.size}"
+            )
 
         # Retornar diccionario con path_loss y metadatos de validez
         return {
@@ -334,16 +341,15 @@ class COST231HataModel:
         if city_type.lower() == 'large':
             # Ciudades grandes (metropolis)
             if frequency <= 200:
-                a_hm = 8.29 * (self.xp.log10(1.54 * hm))**2 - 1.1
+                a_hm = 8.29 * (math.log10(1.54 * hm))**2 - 1.1
             else:
-                a_hm = 3.2 * (self.xp.log10(11.75 * hm))**2 - 4.97
+                a_hm = 3.2 * (math.log10(11.75 * hm))**2 - 4.97
         else:
             # Ciudades medianas (default)
-            a_hm = (1.1 * self.xp.log10(frequency) - 0.7) * hm - \
-                   (1.56 * self.xp.log10(frequency) - 0.8)
+            log10_f = math.log10(frequency)
+            a_hm = (1.1 * log10_f - 0.7) * hm - (1.56 * log10_f - 0.8)
 
-        # Broadcast a shape de hb_eff
-        return self.xp.asarray(a_hm) + self.xp.zeros_like(hb_eff)
+        return float(a_hm)  # Python float: broadcast automático, 0 GPU ops
 
     def _calculate_effective_height_vectorized(self, tx_height: float, tx_elevation: float,
                                                terrain_profiles: np.ndarray,
@@ -393,11 +399,11 @@ class COST231HataModel:
         # Rango [inner, outer] adaptado dinámicamente para mapas pequeños
         inner_km = max(self.terrain_reference_inner_km, 0.0)
         outer_km = max(self.terrain_reference_outer_km, inner_km)
-        max_d = self.xp.max(d_km_reshaped)
-
-        if max_d < outer_km:
-            outer_km = max_d
-            self.logger.debug(f"Adapted outer_km to {outer_km:.2f}km (map too small)")
+        # Adaptar outer_km dinámicamente sin D2H sync — idéntico a OkumuraHata
+        outer_km = self.xp.minimum(
+            self.xp.asarray(outer_km, dtype=self.xp.float32),
+            self.xp.max(d_km_reshaped)
+        )
 
         # Máscara para rango [inner, outer]
         mask = (profile_distances >= inner_km) & (profile_distances <= outer_km)  # (n_receptors, n_samples)
@@ -405,49 +411,31 @@ class COST231HataModel:
         # Contar muestras por receptor
         sample_counts = self.xp.sum(mask, axis=1)  # (n_receptors,)
 
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # VECTORIZED z_ref calculation (SIN for loop) - 100x más rápido
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        
-        # 1. Media global por receptor (por fila)
-        z_ref_global = self.xp.mean(terrain_profiles, axis=1)  # (n_receptors,)
-        
-        # 2. Media en rango [inner, outer] - usar nanmean con máscara
-        terrain_masked = terrain_profiles.copy()
-        terrain_masked[~mask] = self.xp.nan
-        z_ref_annulus = self.xp.nanmean(terrain_masked, axis=1)  # (n_receptors,)
-        
-        # Reemplazar NaN con media global (fallback automático)
-        z_ref_annulus = self.xp.where(
-            self.xp.isnan(z_ref_annulus),
-            z_ref_global,
-            z_ref_annulus
-        )
-        
-        # 3. Seleccionar según sample_count (VECTORIZADO)
+        # Masked-sum vectorizado: evita nanmean (→float64), .copy() y D2H syncs
+        sum_annulus = self.xp.sum(terrain_profiles * mask, axis=1)
+        z_ref_annulus = sum_annulus / self.xp.maximum(sample_counts, 1)
+
+        # Fallback: media global sin nanmean
+        z_ref_global = self.xp.sum(terrain_profiles, axis=1) / n_samples
+
+        # Selección vectorizada sin D2H sync
         z_ref = self.xp.where(
             sample_counts >= self.terrain_min_samples,
             z_ref_annulus,
             z_ref_global
-        )  # (n_receptors,)
-        
-        # Log de receptores con fallback (muestreo)
-        n_fallback = int(self.xp.sum(sample_counts < self.terrain_min_samples))
-        if n_fallback > 0 and n_fallback <= 10:
-            fallback_indices = self.xp.where(sample_counts < self.terrain_min_samples)[0]
-            for idx in fallback_indices[:5]:
-                self.logger.debug(
-                    f"Receptor {idx}: only {sample_counts[idx]} samples in [3-15km], using global mean"
-                )
-            if n_fallback > 5:
-                self.logger.debug(f"... and {n_fallback - 5} more receptors with fallback")
-        elif n_fallback > 10:
-            self.logger.debug(f"Receptores con fallback (sin muestras suficientes): {n_fallback}")
+        )
+
+        # Log guardado — D2H syncs solo si el logger está activo
+        if self.logger.isEnabledFor(logging.DEBUG):
+            n_fallback = int(self.xp.sum(sample_counts < self.terrain_min_samples))
+            if n_fallback > 0:
+                self.logger.debug(f"Receptores con fallback (global mean): {n_fallback}")
 
         # Altura efectiva: h_b,eff = h_tx + z_tx - z_ref
         hb_effective = tx_height + tx_elevation - z_ref
 
-        return hb_effective
+        # Cast explícito a float32: evita que float64 se propague al pipeline de path_loss
+        return hb_effective.astype(self.xp.float32)
 
     def get_model_info(self) -> Dict[str, Any]:
         """

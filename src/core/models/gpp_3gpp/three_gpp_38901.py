@@ -167,7 +167,7 @@ class ThreGPP38901Model:
             )
 
         xp = self.xp
-        d2D = xp.asarray(distances, dtype=float)
+        d2D = xp.asarray(distances, dtype=xp.float32)
         d2D = xp.maximum(d2D, 10.0)  # minimo valido del estandar = 10 m
 
         # d3D: distancia 3D incluyendo separacion vertical TX-RX
@@ -197,7 +197,7 @@ class ThreGPP38901Model:
                 )
                 self._dem_warning_emitted = True
 
-            terrain_xp = xp.asarray(terrain_heights, dtype=float)
+            terrain_xp = xp.asarray(terrain_heights, dtype=xp.float32)
             diffraction = self._apply_terrain_correction(
                 d2D, f_ghz, terrain_xp, h_bs, h_ue,
                 kwargs.get('tx_elevation', None),
@@ -208,7 +208,7 @@ class ThreGPP38901Model:
         return {
             'path_loss': path_loss,
             'validity_mask': validity_mask,
-            'valid_count': int(xp.sum(validity_mask)),
+            'valid_count': None,   # evita D2H sync; caller no usa este campo
         }
 
     def get_breakpoint_distance(self, frequency_ghz: float = 2.0) -> float:
@@ -374,7 +374,7 @@ class ThreGPP38901Model:
 
         A = min(0.03 * h ** 1.72, 10.0)
         B = min(0.044 * h ** 1.72, 14.77)
-        C = 0.002 * np.log10(h)
+        C = float(0.002 * np.log10(h))  # Python float: evita np.float64 que promueve arrays
 
         d3D_safe = xp.maximum(d3D, 1.0)
         log10_f = float(np.log10(max(f_ghz, 1e-9)))
@@ -386,22 +386,24 @@ class ThreGPP38901Model:
         # PL2: PL1 en d_BP + 40*log10(d3D/d3D_BP)
         d_bp_safe = max(float(d_bp), 1.0)
         d3D_bp = float(np.sqrt(d_bp_safe ** 2 + (h_bs - h_ue) ** 2))
-        pl1_at_bp = (20.0 * np.log10(40.0 * np.pi * d3D_bp * f_ghz / 3.0)
+        pl1_at_bp = float(20.0 * np.log10(40.0 * np.pi * d3D_bp * f_ghz / 3.0)
                      + A * np.log10(d3D_bp) - B + C * d3D_bp)
         pl2 = pl1_at_bp + 40.0 * xp.log10(xp.maximum(d3D_safe / d3D_bp, 1e-9))
 
         pl_los = xp.where(d2D <= d_bp, pl1, pl2)
 
         # NLOS' y NLOS = max(LOS, NLOS')
-        pl_prime = (
+        # Términos escalares en Python float para evitar np.float64 → float32 promotion
+        _pl_nlos_base = float(
             161.04
             - 7.1 * np.log10(W)
             + 7.5 * np.log10(h)
             - (24.37 - 3.7 * (h / h_bs) ** 2) * np.log10(h_bs)
-            + (43.42 - 3.1 * np.log10(h_bs)) * (xp.log10(d3D_safe) - 3.0)
             + 20.0 * log10_f
             - (3.2 * (np.log10(11.75 * h_ue)) ** 2 - 4.97)
         )
+        _c_bs = float(43.42 - 3.1 * np.log10(h_bs))
+        pl_prime = _pl_nlos_base + _c_bs * (xp.log10(d3D_safe) - 3.0)
         pl_nlos = xp.maximum(pl_los, pl_prime)
 
         return pl_los, pl_nlos
@@ -414,7 +416,7 @@ class ThreGPP38901Model:
         self, f_ghz: float, distances_m: np.ndarray, h_ue: float
     ) -> np.ndarray:
         """PL_LOS (metros). Mantenido por compatibilidad con tests."""
-        d2D = self.xp.maximum(self.xp.asarray(distances_m, dtype=float), 10.0)
+        d2D = self.xp.maximum(self.xp.asarray(distances_m, dtype=self.xp.float32), 10.0)
         d3D = self.xp.sqrt(d2D ** 2 + (self.h_bs - h_ue) ** 2)
         d_bp = self._calculate_breakpoint(self.h_bs, h_ue, f_ghz)
         pl_los, _ = self._calculate_los_nlos(d2D, d3D, d_bp, f_ghz, self.h_bs, h_ue)
@@ -424,7 +426,7 @@ class ThreGPP38901Model:
         self, f_ghz: float, distances_m: np.ndarray, h_ue: float
     ) -> np.ndarray:
         """PL_NLOS (metros). Mantenido por compatibilidad con tests."""
-        d2D = self.xp.maximum(self.xp.asarray(distances_m, dtype=float), 10.0)
+        d2D = self.xp.maximum(self.xp.asarray(distances_m, dtype=self.xp.float32), 10.0)
         d3D = self.xp.sqrt(d2D ** 2 + (self.h_bs - h_ue) ** 2)
         d_bp = self._calculate_breakpoint(self.h_bs, h_ue, f_ghz)
         _, pl_nlos = self._calculate_los_nlos(d2D, d3D, d_bp, f_ghz, self.h_bs, h_ue)
@@ -452,7 +454,7 @@ class ThreGPP38901Model:
           - NO se multiplica por (1-P_LOS): terreno y estadistica urbana son ortogonales
         """
         xp = self.xp
-        correction = xp.zeros_like(d2D, dtype=float)
+        correction = xp.zeros_like(d2D, dtype=xp.float32)
 
         if terrain_heights.size == 0:
             return correction

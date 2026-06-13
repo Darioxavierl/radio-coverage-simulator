@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from typing import Dict, List, Tuple
 from models.antenna import Antenna
@@ -25,7 +26,8 @@ class CoverageCalculator:
         model,
         model_params: dict = None,
         return_details: bool = False,
-        terrain_loader=None
+        terrain_loader=None,
+        pathloss_timer_out: dict = None,
     ) -> np.ndarray:
         """
         Calcula cobertura para una antena
@@ -49,10 +51,12 @@ class CoverageCalculator:
             model_params = {}
 
         # Convertir a GPU si está disponible
+        # float32: activa FP32 nativo en GPU (33x más rápido que FP64 emulado en GTX 1660)
+        # Precisión suficiente: path loss en dB, error físico ±2-5 dB >> error float32 (~1e-6)
         if self.engine.use_gpu:
-            grid_lats = self.xp.asarray(grid_lats)
-            grid_lons = self.xp.asarray(grid_lons)
-            terrain_heights = self.xp.asarray(terrain_heights)
+            grid_lats       = self.xp.asarray(grid_lats,       dtype=self.xp.float32)
+            grid_lons       = self.xp.asarray(grid_lons,       dtype=self.xp.float32)
+            terrain_heights = self.xp.asarray(terrain_heights, dtype=self.xp.float32)
 
         # Calcular distancias
         distances = self._calculate_distances(
@@ -114,9 +118,10 @@ class CoverageCalculator:
             self.logger.info(f"After get_smoothed_profiles: smoothed_terrain_profiles.shape={smoothed_terrain_profiles.shape}")
             
             # Convertir todos los parámetros al módulo correcto (NumPy o CuPy)
-            terrain_profiles = self.xp.asarray(terrain_profiles)
-            profile_distances = self.xp.asarray(profile_distances)
-            smoothed_terrain_profiles = self.xp.asarray(smoothed_terrain_profiles)
+            # float32 consistente con grid_lats/lons para mantener precision uniforme en GPU
+            terrain_profiles          = self.xp.asarray(terrain_profiles,          dtype=self.xp.float32)
+            profile_distances         = self.xp.asarray(profile_distances,         dtype=self.xp.float32)
+            smoothed_terrain_profiles = self.xp.asarray(smoothed_terrain_profiles, dtype=self.xp.float32)
             self.logger.info(f"After xp.asarray: terrain_profiles.shape={terrain_profiles.shape}, "
                            f"profile_distances.shape={profile_distances.shape}, "
                            f"smoothed_terrain_profiles.shape={smoothed_terrain_profiles.shape}")
@@ -132,7 +137,19 @@ class CoverageCalculator:
         path_loss_args.update(model_params)
 
         # Calcular path loss usando modelo
+        # Timer honesto: sincronizar cola GPU antes y despues para medir solo el kernel
+        if self.engine.use_gpu:
+            self.xp.cuda.Stream.null.synchronize()  # vaciar cola GPU pendiente
+        _pl_t0 = time.perf_counter()
+
         result = model.calculate_path_loss(**path_loss_args)
+
+        if self.engine.use_gpu:
+            self.xp.cuda.Stream.null.synchronize()  # esperar que el kernel termine
+        _pl_elapsed = round(time.perf_counter() - _pl_t0, 4)
+        if pathloss_timer_out is not None:
+            pathloss_timer_out['pathloss_s'] = _pl_elapsed
+
         # Algunos modelos retornan dict, otros ndarray directamente
         path_loss = result['path_loss'] if isinstance(result, dict) else result
 

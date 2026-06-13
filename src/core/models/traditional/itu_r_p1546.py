@@ -216,9 +216,11 @@ class ITUR_P1546Model:
         
         # === BUG #7 FIX: Protección distancia mínima 1 km (P.1546 válido solo para d > 1 km) ===
         distances_km = self.xp.maximum(distances_km, 1.0)
-        n_clipped = int(self.xp.sum(distances_km <= 1.0001))
-        if n_clipped > 0:
-            self.logger.debug(f"[P.1546 Boundary Fix] {n_clipped} distancias clipeadas a 1.0 km (mínimo P.1546)")
+        # guard evita D2H sync en benchmarks (logger en ERROR)
+        if self.logger.isEnabledFor(logging.DEBUG):
+            n_clipped = int(self.xp.sum(distances_km <= 1.0001))
+            if n_clipped > 0:
+                self.logger.debug(f"[P.1546 Boundary Fix] {n_clipped} distancias clipeadas a 1.0 km (mínimo P.1546)")
         
         # === PASO 2: Interpolar E[dBμV/m] desde tablas ITU ===
         E_field = self._interpolate_field_intensity(
@@ -330,11 +332,13 @@ class ITUR_P1546Model:
         
         # Validar valores finales
         validity_mask = self.xp.isfinite(path_loss_shaped) & (path_loss_shaped > 0)
-        valid_count = int(self.xp.sum(validity_mask))
 
-        self.logger.debug(f"Path loss: min={self.xp.min(path_loss_shaped):.1f} dB, "
-                         f"max={self.xp.max(path_loss_shaped):.1f} dB, "
-                         f"valid={valid_count}/{n_receptors}")
+        # guard evita D2H syncs en benchmarks (logger en ERROR)
+        if self.logger.isEnabledFor(logging.DEBUG):
+            valid_count = int(self.xp.sum(validity_mask))
+            self.logger.debug(f"Path loss: min={float(self.xp.min(path_loss_shaped)):.1f} dB, "
+                             f"max={float(self.xp.max(path_loss_shaped)):.1f} dB, "
+                             f"valid={valid_count}/{n_receptors}")
 
         return path_loss_shaped
     
@@ -667,21 +671,24 @@ class ITUR_P1546Model:
 
             K_nu = 0.0108 * np.sqrt(max(frequency, 1.0))
 
-            for i in range(n):
-                rp_i = float(Rp[i])
-                if h2_eff < rp_i:
-                    # eq. 28a
-                    h_dif = rp_i - h2_eff
-                    theta_clut = np.degrees(np.arctan(h_dif / 27.0))
-                    nu = K_nu * np.sqrt(h_dif * theta_clut)
-                    corr_i = 6.03 - float(self._J_function(xp.array([nu]))[0])
-                else:
-                    # eq. 28b
-                    corr_i = K_h2 * np.log10(h2_eff / rp_i)
-                # Reducción adicional cuando Rp < 10
-                if rp_i < 10.0:
-                    corr_i -= K_h2 * np.log10(10.0 / rp_i)
-                correction_E[i] = corr_i
+            # Vectorizado: sin loop Python — evita O(n) D2H syncs en GPU
+            mask_below = h2_eff < Rp  # (n,) True donde receptor bajo clutter
+
+            # eq. 28a: h2 < Rp (receptor bajo nivel representativo de clutter)
+            h_dif_a = xp.maximum(Rp - h2_eff, 0.0)
+            theta_clut_a = xp.degrees(xp.arctan(h_dif_a / 27.0))
+            nu_a = K_nu * xp.sqrt(xp.maximum(h_dif_a * theta_clut_a, 0.0))
+            corr_28a = 6.03 - self._J_function(nu_a)
+
+            # eq. 28b: h2 >= Rp (antena sobre o al nivel del clutter)
+            corr_28b = K_h2 * xp.log10(xp.maximum(h2_eff / xp.maximum(Rp, 1e-9), 1e-9))
+
+            correction_E = xp.where(mask_below, corr_28a, corr_28b)
+
+            # Reduccion adicional cuando Rp < 10
+            mask_rp_lt_10 = Rp < 10.0
+            delta_rp = K_h2 * xp.log10(xp.maximum(10.0 / xp.maximum(Rp, 1e-9), 1e-9))
+            correction_E = xp.where(mask_rp_lt_10, correction_E - delta_rp, correction_E)
 
         else:
             # Rural / Open: Rp = 10 siempre, eq. 28b directamente (vectorizado)

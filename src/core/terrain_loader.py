@@ -182,7 +182,9 @@ class TerrainLoader:
 
     def get_elevations_fast(self, lats, lons):
         """
-        Versión optimizada de get_elevations (usa vectorización de rasterio)
+        Versión optimizada de get_elevations (usa vectorización de rasterio).
+        Utiliza NumPy fancy indexing — sin loops Python — para soportar
+        inputs de hasta decenas de millones de puntos eficientemente.
 
         Args:
             lats: Array numpy con latitudes
@@ -199,23 +201,31 @@ class TerrainLoader:
             lats_flat = lats.flatten()
             lons_flat = lons.flatten()
 
-            # Transformar todas las coordenadas de una vez
+            # Transformar todas las coordenadas de una vez (ya vectorizado)
             xs, ys = self.transformer.transform(lons_flat, lats_flat)
 
-            # Obtener índices de píxeles
+            # Obtener índices de píxeles (ya vectorizado, devuelve arrays)
             from rasterio.transform import rowcol
             rows, cols = rowcol(self.dataset.transform, xs, ys)
+            rows = np.asarray(rows, dtype=np.intp)
+            cols = np.asarray(cols, dtype=np.intp)
 
-            # Inicializar array de salida
+            H, W = self.data.shape
+
+            # Mascara de índices dentro del raster (sin loop Python)
+            valid = (rows >= 0) & (rows < H) & (cols >= 0) & (cols < W)
+
+            # Fancy indexing con indices clippeados para evitar IndexError en
+            # puntos fuera del raster antes de aplicar la mascara
+            rows_safe = np.clip(rows, 0, H - 1)
+            cols_safe = np.clip(cols, 0, W - 1)
+            raw = self.data[rows_safe, cols_safe]  # extraccion vectorizada
+
+            # Filtrar NoData y valores fuera del rango fisico (0–10000 m)
+            good = valid & (raw >= 0) & (raw < 10000)
+
             elevations = np.zeros(len(lats_flat))
-
-            # Extraer elevaciones
-            for i, (row, col) in enumerate(zip(rows, cols)):
-                if 0 <= row < self.data.shape[0] and 0 <= col < self.data.shape[1]:
-                    elev = self.data[row, col]
-                    # Filtrar NoData y valores sospechosos (0 a 10000m válido)
-                    if 0 <= elev < 10000:
-                        elevations[i] = elev
+            elevations[good] = raw[good]
 
             return elevations.reshape(original_shape)
 

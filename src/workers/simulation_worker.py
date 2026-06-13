@@ -84,6 +84,7 @@ class SimulationWorker(QObject):
             antenna_times = {}  # NUEVO: Rastrear tiempos por antena
             antenna_coverage_times = {}  # NUEVA: Timing de cálculo (sin render)
             antenna_render_times = {}  # NUEVA: Timing de render
+            antenna_pathloss_times = {}  # NUEVA: Timing puro de path loss (con GPU sync)
 
             # PHASE 7: Preparar parámetros base para modelo (fuera del loop)
             frequency_override_mhz = self.config.get('frequency_override_mhz', None)
@@ -166,6 +167,7 @@ class SimulationWorker(QObject):
 
                 # PHASE 7: Usar grid GLOBAL en lugar de crear uno centrado en antena
                 coverage_start = time.perf_counter()  # NUEVA: Checkpoint inicio coverage calc
+                _pl_timer = {}  # dict mutable para capturar pathloss_s desde coverage_calculator
                 coverage_result = self.calculator.calculate_single_antenna_coverage(
                     antenna=antenna,
                     grid_lats=grid_lats,
@@ -175,9 +177,11 @@ class SimulationWorker(QObject):
                     model_params=model_params,
                     return_details=True,
                     terrain_loader=self.terrain_loader,
+                    pathloss_timer_out=_pl_timer,
                 )
                 coverage_calc_time = time.perf_counter() - coverage_start  # NUEVA: Timing coverage calc
                 antenna_coverage_times[antenna.id] = round(coverage_calc_time, 3)
+                antenna_pathloss_times[antenna.id] = _pl_timer.get('pathloss_s', 0.0)
 
                 rsrp = coverage_result['rsrp']
                 
@@ -376,6 +380,7 @@ class SimulationWorker(QObject):
                 'antenna_total_times_seconds': antenna_times,
                 'antenna_coverage_times_seconds': antenna_coverage_times,
                 'antenna_render_times_seconds': antenna_render_times,
+                'antenna_pathloss_times_seconds': antenna_pathloss_times,
                 'multi_antenna_aggregation_time_seconds': round(aggregation_time, 3),
                 'num_antennas': len(self.antennas),
                 'grid_parameters': {
