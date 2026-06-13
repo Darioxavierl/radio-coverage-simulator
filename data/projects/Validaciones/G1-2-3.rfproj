@@ -1,0 +1,41 @@
+{
+    "id": "625d73c2-2381-4a3c-8e99-d9be11217a2f",
+    "name": "Nuevo Proyecto",
+    "description": "",
+    "created_date": "2026-06-11T20:55:25.436975",
+    "modified_date": "2026-06-11T20:58:39.449713",
+    "author": "",
+    "center_lat": -2.9039316249138514,
+    "center_lon": -79.00408029556276,
+    "zoom_level": 16,
+    "terrain_file": null,
+    "sites": {},
+    "antennas": {
+        "4e9820ec-1ec8-4510-88eb-3842c4a1e669": {
+            "id": "4e9820ec-1ec8-4510-88eb-3842c4a1e669",
+            "name": "Antenna 1",
+            "site_id": null,
+            "latitude": -2.903929,
+            "longitude": -79.004086,
+            "height_agl": 30.0,
+            "frequency_mhz": 1800.0,
+            "bandwidth_mhz": 20.0,
+            "tx_power_dbm": 40.0,
+            "technology": "LTE 1800",
+            "azimuth": 0.0,
+            "mechanical_tilt": 0.0,
+            "electrical_tilt": 0.0,
+            "antenna_type": "omnidirectional",
+            "pattern_file": "sector_65deg.json",
+            "horizontal_beamwidth": 65.0,
+            "vertical_beamwidth": 10.0,
+            "gain_dbi": 13.0,
+            "color": "#FF0000",
+            "visible": true,
+            "show_coverage": true,
+            "enabled": true,
+            "notes": ""
+        }
+    },
+    "simulation_config": {}
+}
