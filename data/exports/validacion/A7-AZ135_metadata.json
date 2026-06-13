@@ -1,35 +1,35 @@
 {
   "simulation_info": {
-    "timestamp": "2026-06-12T19:19:14.648112",
+    "timestamp": "2026-06-13T13:02:45.332110",
     "software": "RF Coverage Tool v1.0",
-    "export_timestamp": "2026-06-12T19:19:42.603590"
+    "export_timestamp": "2026-06-13T13:02:57.718459"
   },
   "compute_performance": {
     "gpu_used": true,
     "gpu_device": "GPU: NVIDIA GeForce GTX 1660 SUPER (CC 7.5)",
-    "total_execution_time_seconds": 5.48,
+    "total_execution_time_seconds": 4.32,
     "antenna_times_seconds": {
-      "a6e7bd97-f8e5-4237-b430-ef1f265601df": 5.399
+      "dfc3d044-0091-44c6-91ec-6885f9eb18dd": 4.273
     },
-    "terrain_loading_time_seconds": 0.073,
+    "terrain_loading_time_seconds": 0.044,
     "antenna_total_times_seconds": {
-      "a6e7bd97-f8e5-4237-b430-ef1f265601df": 5.399
+      "dfc3d044-0091-44c6-91ec-6885f9eb18dd": 4.273
     },
     "antenna_coverage_times_seconds": {
-      "a6e7bd97-f8e5-4237-b430-ef1f265601df": 3.961
+      "dfc3d044-0091-44c6-91ec-6885f9eb18dd": 2.963
     },
     "antenna_render_times_seconds": {
-      "a6e7bd97-f8e5-4237-b430-ef1f265601df": 0.39
+      "dfc3d044-0091-44c6-91ec-6885f9eb18dd": 0.252
     },
     "multi_antenna_aggregation_time_seconds": 0.003
   },
   "grid_parameters": {
-    "radius_km": 5,
+    "radius_km": 4,
     "resolution": 300,
     "total_grid_points": 90000
   },
   "propagation_model": {
-    "model_name": "okumura_hata",
+    "model_name": "cost231_hata",
     "parameters": {
       "environment": "Urban",
       "city_type": "medium"
