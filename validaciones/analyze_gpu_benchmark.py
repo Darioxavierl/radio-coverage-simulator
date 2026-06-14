@@ -112,8 +112,8 @@ def compute_stats(df: pd.DataFrame, metric: str) -> dict:
 
 
 def speedup_ratio(cpu_stats: dict, gpu_stats: dict) -> float:
-    """Speedup = cpu_mean / gpu_mean. nan si datos insuficientes."""
-    c, g = cpu_stats["mean"], gpu_stats["mean"]
+    """Speedup = cpu_median / gpu_median. nan si datos insuficientes."""
+    c, g = cpu_stats["median"], gpu_stats["median"]
     if np.isnan(c) or np.isnan(g) or g == 0:
         return np.nan
     return c / g
@@ -369,48 +369,62 @@ def plot_g6_all_models(model_data: dict, out_path: Path) -> None:
             gs = compute_stats(gpu_df, metric) if gpu_df is not None else {"median": np.nan}
             speedups_matrix[i, j] = speedup_ratio(cs, gs)
 
+    # Tramas de relleno para distinguir métricas (independiente del color speedup)
+    METRIC_HATCHES = ["///", "\\\\\\", "xxx"]
+
     fig, ax = plt.subplots(figsize=(10, 5))
     width   = 0.22
     x       = np.arange(n_models)
-    metric_colors = ["#5dade2", "#58d68d", "#f39c12"]
 
     for i, (metric, m_label) in enumerate(metric_labels):
         offset = (i - n_metrics / 2 + 0.5) * width
         vals   = speedups_matrix[i]
-        bar_colors = [C_SPEEDUP_OK if (not np.isnan(v) and v > 1.0)
-                      else C_SPEEDUP_NO for v in vals]
-        bars = ax.bar(x + offset, vals, width=width * 0.9,
-                      color=bar_colors, edgecolor="white",
-                      linewidth=0.6, label=m_label, zorder=3,
-                      alpha=0.85)
-        # Valores en las barras
-        for bar, sp in zip(bars, vals):
-            if np.isnan(sp):
-                continue
-            ax.text(bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() / 2,
-                    f"{sp:.2f}×",
-                    ha="center", va="center",
-                    fontsize=8, fontweight="bold", color="white", zorder=5)
+        hatch  = METRIC_HATCHES[i]
+        for j, (sp, model) in enumerate(zip(vals, models)):
+            color = C_SPEEDUP_OK if (not np.isnan(sp) and sp > 1.0) else C_SPEEDUP_NO
+            ax.bar(x[j] + offset, sp, width=width * 0.9,
+                   color=color, edgecolor="white", hatch=hatch,
+                   linewidth=0.6, zorder=3, alpha=0.85)
+            if not np.isnan(sp):
+                ax.text(x[j] + offset, sp + 0.03,
+                        f"{sp:.2f}×",
+                        ha="center", va="bottom",
+                        fontsize=7.5, fontweight="bold", color="black", zorder=5)
 
-    ax.axhline(1.0, color="#e74c3c", linestyle="--", linewidth=1.2,
-               label="CPU = GPU (1.0×)", zorder=4)
-
+    ax.axhline(1.0, color="#c0392b", linestyle="--", linewidth=1.4,
+               zorder=4)
+    ax.set_ylim(0, np.nanmax(speedups_matrix) * 1.2)
     ax.set_xticks(x)
     ax.set_xticklabels([G6_LABELS.get(m, m) for m in models], fontsize=10)
     ax.set_ylabel("Speedup GPU/CPU  (×)", fontsize=10)
-    #ax.set_title("G6 — Speedup por modelo de propagación", fontsize=13, fontweight="bold", pad=10)
     ax.grid(axis="y", linestyle=":", alpha=0.5, zorder=0)
     ax.set_axisbelow(True)
 
-    # Leyenda de métricas
-    metric_patches = [mpatches.Patch(color=metric_colors[i], alpha=0.85,
-                                     label=label)
-                      for i, (_, label) in enumerate(metric_labels)]
-    line_ref = plt.Line2D([0], [0], color="#e74c3c", linestyle="--",
-                           linewidth=1.2, label="CPU = GPU")
-    ax.legend(handles=metric_patches + [line_ref], fontsize=9,
-              loc="upper right")
+    # ── Leyenda en dos grupos explícitos ──────────────────────────────────────
+    # Grupo 1: trama = qué métrica representa cada barra
+    hatch_patches = [
+        mpatches.Patch(facecolor="lightgray", edgecolor="gray",
+                       hatch=METRIC_HATCHES[i], label=label)
+        for i, (_, label) in enumerate(metric_labels)
+    ]
+    # Grupo 2: color = resultado del speedup
+    color_patches = [
+        mpatches.Patch(facecolor=C_SPEEDUP_OK, edgecolor="white", label="GPU más rápida (>1×)"),
+        mpatches.Patch(facecolor=C_SPEEDUP_NO, edgecolor="white", label="GPU más lenta  (<1×)"),
+        plt.Line2D([0], [0], color="#c0392b", linestyle="--",
+                   linewidth=1.4, label="Paridad CPU = GPU (1.0×)"),
+    ]
+    # Separador visual usando un handle vacío con el título del grupo
+    blank = mpatches.Patch(visible=False, label="")
+    metric_title  = mpatches.Patch(visible=False, label="— Métrica —")
+    result_title  = mpatches.Patch(visible=False, label="— Resultado —")
+
+    ax.legend(
+        handles=[metric_title] + hatch_patches + [blank, result_title] + color_patches,
+        fontsize=8.5, loc="lower right",
+        handlelength=2.0, handleheight=1.4,
+        framealpha=0.9,
+    )
 
     plt.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")

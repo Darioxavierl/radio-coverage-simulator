@@ -2,9 +2,9 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
-ATOLL_TXT_PATH = ROOT_DIR / "Atoll" / "A4.txt"
-RF_CSV_PATH = ROOT_DIR / "data" / "exports" / "validacion" / "A4.csv"
-OUTPUT_DIR = ROOT_DIR / "validaciones" / "resultados" / "A4"
+ATOLL_TXT_PATH = ROOT_DIR / "Atoll" / "A7-AZ45.txt"
+RF_CSV_PATH = ROOT_DIR / "data" / "exports" / "validacion" / "A7-AZ45.csv"
+OUTPUT_DIR = ROOT_DIR / "validaciones" / "resultados" / "A7-AZ45"
 
 WORK_CRS = "EPSG:4326"
 SOURCE_CRS = "EPSG:4326"
