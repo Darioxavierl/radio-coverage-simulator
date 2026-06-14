@@ -1,3 +1,4 @@
+import math
 import time
 import numpy as np
 from typing import Dict, List, Tuple
@@ -246,18 +247,22 @@ class CoverageCalculator:
     def _calculate_distances(self, ant_lat, ant_lon, grid_lats, grid_lons):
         """Calcula distancias usando fórmula Haversine"""
         R = 6371000  # Radio tierra en metros
-        
-        lat1 = self.xp.radians(ant_lat)
-        lon1 = self.xp.radians(ant_lon)
-        lat2 = self.xp.radians(grid_lats)
-        lon2 = self.xp.radians(grid_lons)
-        
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        
-        a = self.xp.sin(dlat/2)**2 + self.xp.cos(lat1) * self.xp.cos(lat2) * self.xp.sin(dlon/2)**2
+
+        # Escalares del TX con math — xp.radians(python_scalar) devuelve float64 en CuPy
+        # y contamina todo el array resultante. math.* devuelve Python float (tipo débil).
+        lat1_r   = math.radians(ant_lat)
+        lon1_r   = math.radians(ant_lon)
+        cos_lat1 = math.cos(lat1_r)   # Python float — broadcast preserva dtype del array
+
+        lat2 = self.xp.radians(grid_lats)  # float32 → float32
+        lon2 = self.xp.radians(grid_lons)  # float32 → float32
+
+        dlat = lat2 - lat1_r   # float32 - Python float → float32
+        dlon = lon2 - lon1_r   # float32 - Python float → float32
+
+        a = self.xp.sin(dlat/2)**2 + cos_lat1 * self.xp.cos(lat2) * self.xp.sin(dlon/2)**2
         c = 2 * self.xp.arctan2(self.xp.sqrt(a), self.xp.sqrt(1-a))
-        
+
         return R * c
     
     def _apply_antenna_pattern(self, antenna: Antenna, grid_lats, grid_lons,
@@ -333,25 +338,29 @@ class CoverageCalculator:
     
     def _calculate_azimuths(self, ant_lat, ant_lon, grid_lats, grid_lons):
         """Calcula azimuth desde antena a cada punto"""
-        lat1 = self.xp.radians(ant_lat)
-        lon1 = self.xp.radians(ant_lon)
-        lat2 = self.xp.radians(grid_lats)
-        lon2 = self.xp.radians(grid_lons)
+        # Escalares del TX con math — igual que _calculate_distances
+        lat1_r   = math.radians(ant_lat)
+        lon1_r   = math.radians(ant_lon)
+        cos_lat1 = math.cos(lat1_r)
+        sin_lat1 = math.sin(lat1_r)
 
-        dlon = lon2 - lon1
+        lat2 = self.xp.radians(grid_lats)  # float32 → float32
+        lon2 = self.xp.radians(grid_lons)  # float32 → float32
+
+        dlon = lon2 - lon1_r  # float32
 
         # Bearing inicial geodésico (forward azimuth) en esfera.
         y = self.xp.sin(dlon) * self.xp.cos(lat2)
         x = (
-            self.xp.cos(lat1) * self.xp.sin(lat2)
-            - self.xp.sin(lat1) * self.xp.cos(lat2) * self.xp.cos(dlon)
+            cos_lat1 * self.xp.sin(lat2)
+            - sin_lat1 * self.xp.cos(lat2) * self.xp.cos(dlon)
         )
 
         azimuth = self.xp.degrees(self.xp.arctan2(y, x))
         azimuth = (azimuth + 360) % 360
-        
-        return azimuth
 
+        return azimuth
+        
     def calculate_single_antenna_quick(
         self,
         antenna,

@@ -349,25 +349,30 @@ class OkumuraHataModel:
         # === ESTADÍSTICA DEL TERRENO (Hata) ===
         # Crear distancias para TODO el perfil de cada receptor
         d_km_reshaped = d_km.reshape(-1, 1)  # (n_receptors, 1)
-        t = self.xp.linspace(0.0, 1.0, n_samples)  # (n_samples,) desde TX(0) a RX(1)
-        profile_distances = d_km_reshaped * t  # (n_receptors, n_samples) - broadcast
-        
+        # dtype=float32: linspace devuelve float64 por defecto → profile_distances float64
+        # → FP64 emulado en GPU (33× más lento)
+        t = self.xp.linspace(0.0, 1.0, n_samples, dtype=self.xp.float32)
+        profile_distances = d_km_reshaped * t  # (n_receptors, n_samples) float32
+
         # Máscara para rango [inner_km, outer_km] - adaptado dinámicamente para mapas pequeños
-        # Para mapas pequeños donde receptores están a <15km, usar distancia máxima como límite
-        # Esto evita ventana vacía y z_ref inestable en simulaciones locales
         inner_km = self.terrain_reference_inner_km
-        outer_km = self.xp.minimum(self.terrain_reference_outer_km, self.xp.max(d_km_reshaped))
-        
+        # xp.asarray float32: xp.minimum(python_float, array) puede devolver float64
+        outer_km = self.xp.minimum(
+            self.xp.asarray(self.terrain_reference_outer_km, dtype=self.xp.float32),
+            self.xp.max(d_km_reshaped)
+        )
+
         mask_annulus = (profile_distances >= inner_km) & (profile_distances <= outer_km)
-        sample_counts = self.xp.sum(mask_annulus, axis=1)  # (n_receptors,)
-        
+        sample_counts = self.xp.sum(mask_annulus, axis=1)  # int64
+
         # z_ref = promedio del terreno EN EL RANGO [3-15km] de CADA radial
-        # Esto es ESTADÍSTICO (media), NO geométrico (punto individual)
         sufficient_mask = sample_counts >= self.terrain_min_samples
 
         # Masked-sum vectorizado: evita nanmean (→float64) y xp.any() (→D2H sync)
         sum_annulus = self.xp.sum(terrain_profiles * mask_annulus, axis=1)
-        z_ref_annulus = sum_annulus / self.xp.maximum(sample_counts, 1)
+        # .astype(float32): float32/int64 → float64 por regla de promoción NumPy/CuPy
+        count_f32 = self.xp.maximum(sample_counts, 1).astype(self.xp.float32)
+        z_ref_annulus = sum_annulus / count_f32
 
         # Fallback: media global por receptor sin nanmean
         z_ref_global = self.xp.sum(terrain_profiles, axis=1) / n_samples

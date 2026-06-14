@@ -393,13 +393,16 @@ class COST231HataModel:
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # Crear distancias para TODO el perfil de cada receptor
         d_km_reshaped = d_km.reshape(-1, 1)  # (n_receptors, 1)
-        t = self.xp.linspace(0.0, 1.0, n_samples)  # (n_samples,)
-        profile_distances = d_km_reshaped * t  # (n_receptors, n_samples)
+
+        # dtype=float32: linspace devuelve float64 por defecto → profile_distances float64
+        # → FP64 emulado en GPU (33× más lento)
+        t = self.xp.linspace(0.0, 1.0, n_samples, dtype=self.xp.float32)
+        profile_distances = d_km_reshaped * t  # (n_receptors, n_samples) float32
 
         # Rango [inner, outer] adaptado dinámicamente para mapas pequeños
         inner_km = max(self.terrain_reference_inner_km, 0.0)
         outer_km = max(self.terrain_reference_outer_km, inner_km)
-        # Adaptar outer_km dinámicamente sin D2H sync — idéntico a OkumuraHata
+        # xp.asarray float32: garantiza que xp.minimum no devuelva float64
         outer_km = self.xp.minimum(
             self.xp.asarray(outer_km, dtype=self.xp.float32),
             self.xp.max(d_km_reshaped)
@@ -409,11 +412,13 @@ class COST231HataModel:
         mask = (profile_distances >= inner_km) & (profile_distances <= outer_km)  # (n_receptors, n_samples)
 
         # Contar muestras por receptor
-        sample_counts = self.xp.sum(mask, axis=1)  # (n_receptors,)
+        sample_counts = self.xp.sum(mask, axis=1)  # int64
 
         # Masked-sum vectorizado: evita nanmean (→float64), .copy() y D2H syncs
         sum_annulus = self.xp.sum(terrain_profiles * mask, axis=1)
-        z_ref_annulus = sum_annulus / self.xp.maximum(sample_counts, 1)
+        # .astype(float32): float32/int64 → float64 por regla de promoción NumPy/CuPy
+        count_f32 = self.xp.maximum(sample_counts, 1).astype(self.xp.float32)
+        z_ref_annulus = sum_annulus / count_f32
 
         # Fallback: media global sin nanmean
         z_ref_global = self.xp.sum(terrain_profiles, axis=1) / n_samples
