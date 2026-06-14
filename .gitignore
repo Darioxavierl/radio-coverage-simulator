@@ -7,3 +7,8 @@ __pycache__/
 # Ignorar entorno virtual
 .env
 .venv
+
+logs/
+redacciones/
+.claude/
+validaciones/resultados/*.log
