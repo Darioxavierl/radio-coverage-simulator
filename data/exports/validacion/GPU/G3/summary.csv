@@ -1,0 +1,6 @@
+metric,cpu_median_s,cpu_mean_s,cpu_std_s,cpu_cv_pct,gpu_median_s,gpu_mean_s,gpu_std_s,gpu_cv_pct,speedup,n_cpu_runs,n_gpu_runs
+coverage_s,7.4045,7.455,0.1598,2.14,6.848,6.9302,0.269,3.88,1.0813,20,20
+pathloss_s,0.0982,0.1013,0.0095,9.4,0.1034,0.1053,0.0246,23.4,0.9492,20,20
+render_s,0.288,0.2925,0.0136,4.66,0.264,0.2675,0.013,4.86,1.0909,20,20
+aggregation_s,0.0,0.0,0.0,nan,0.0,0.0,0.0,nan,nan,20,20
+total_s,10.465,10.501,0.2205,2.1,9.645,9.7645,0.37,3.79,1.085,20,20
